@@ -25,7 +25,7 @@ const newsData = [
     source: "BBC",
     time: "2h ago",
     title: "Breaking News: Market hits all-time high",
-    image: "https://via.placeholder.com/150",
+    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
     badge: "Top",
   },
   {
@@ -33,7 +33,23 @@ const newsData = [
     source: "CNN",
     time: "1h ago",
     title: "Sports: Local team wins championship",
-    image: "https://via.placeholder.com/150",
+    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
+    badge: "Sports",
+  },
+  {
+    id: 3,
+    source: "CNN",
+    time: "1h ago",
+    title: "Sports: Local team wins championship",
+    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
+    badge: "Sports",
+  },
+  {
+    id: 4,
+    source: "CNN",
+    time: "1h ago",
+    title: "Sports: Local team wins championship",
+    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
     badge: "Sports",
   },
 ];

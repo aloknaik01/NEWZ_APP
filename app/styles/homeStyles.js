@@ -25,7 +25,7 @@ export const styles = StyleSheet.create({
   tabsWrapper: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: colors.lightGray,
+    backgroundColor: colors.primary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -42,7 +42,7 @@ export const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   tabItemActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.blackBackground,
     elevation: 3,
     shadowOpacity: 0.15,
   },
