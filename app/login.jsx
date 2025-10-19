@@ -17,7 +17,7 @@ import { colors } from "./styles/colors";
 import { styles } from "./styles/formStyles";
 
 export default function LoginScreen() {
-    const [isLogin, setIsLogin] = useState(true);
+    const [isLogin, setIsLogin] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -30,11 +30,11 @@ export default function LoginScreen() {
     const { login, register, loading, error, user, initialize } = useAuthStore();
 
     useEffect(() => {
-        initialize(); // check token on app load
+        initialize();
     }, []);
 
     useEffect(() => {
-        if (user) router.replace("/home"); // auto redirect if logged in
+        if (user) router.replace("/home");
     }, [user]);
 
     const handleSubmit = async () => {

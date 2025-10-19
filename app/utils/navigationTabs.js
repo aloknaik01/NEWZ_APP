@@ -1,7 +1,11 @@
 export const navigationTabs = [
-  "Latest News",
-  "Tech",
-  "Lifestyle",
-  "News",
-  "Drama",
+  "general",
+  "world",
+  "nation",
+  "business",
+  "technology",
+  "entertainment",
+  "sports",
+  "science",
+  "health",
 ];

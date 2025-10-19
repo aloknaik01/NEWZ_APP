@@ -1,10 +1,11 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Dimensions,
   FlatList,
   Image,
+  Linking,
   RefreshControl,
   ScrollView,
   Text,
@@ -19,50 +20,38 @@ import { navigationTabs } from "./utils/navigationTabs";
 
 const { width, height } = Dimensions.get("window");
 
-const newsData = [
-  {
-    id: 1,
-    source: "BBC",
-    time: "2h ago",
-    title: "Breaking News: Market hits all-time high",
-    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
-    badge: "Top",
-  },
-  {
-    id: 2,
-    source: "CNN",
-    time: "1h ago",
-    title: "Sports: Local team wins championship",
-    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
-    badge: "Sports",
-  },
-  {
-    id: 3,
-    source: "CNN",
-    time: "1h ago",
-    title: "Sports: Local team wins championship",
-    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
-    badge: "Sports",
-  },
-  {
-    id: 4,
-    source: "CNN",
-    time: "1h ago",
-    title: "Sports: Local team wins championship",
-    image: "https://c.ndtvimg.com/2024-07/cbjubrog_badnewz_640x480_18_July_24.jpg",
-    badge: "Sports",
-  },
-];
-
 export default function Home() {
   const [activeTab, setActiveTab] = useState(0);
   const [activeNav, setActiveNav] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [newsData, setNewsData] = useState([]);
   const insets = useSafeAreaInsets();
+
+  // ✅ Fetch news from FCS API
+  const fetchNews = async () => {
+    try {
+      const res = await fetch(
+        "https://newsdata.io/api/1/latest?apikey=pub_ea79095eebaa4802a854e4d4a90726d2&language=en&country=in&timezone=Asia/Kolkata"
+      );
+      const data = await res.json();
+      if (data.results && Array.isArray(data.results)) {
+        setNewsData(data.results);
+      } else {
+        setNewsData([]);
+      }
+    } catch (error) {
+      console.error("Error fetching news:", error);
+      setNewsData([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchNews();
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
+    fetchNews().finally(() => setRefreshing(false));
   }, []);
 
   const renderNavIcon = useCallback(
@@ -84,21 +73,49 @@ export default function Home() {
 
   const renderNewsCard = useCallback(
     ({ item }) => (
-      <TouchableOpacity style={styles.newsCard} activeOpacity={0.95}>
+      <TouchableOpacity
+        style={styles.newsCard}
+        activeOpacity={0.95}
+        onPress={() => item.link && Linking.openURL(item.link)}
+      >
         <View style={styles.newsHeader}>
-          <Text style={styles.newsSource}>{item.source}</Text>
-          <Text style={styles.newsTime}>{item.time}</Text>
+          <Text style={styles.newsSource}>
+            {item.source_name || "Unknown"}
+          </Text>
+          <Text style={styles.newsTime}>
+            {item.pubDate
+              ? new Date(item.pubDate).toLocaleDateString()
+              : "Today"}
+          </Text>
         </View>
+
         <View style={styles.newsContent}>
-          <View style={styles.imgWrapper}>
-            <Image source={{ uri: item.image }} style={styles.newsImage} />
-            <View style={styles.newsBadge}>
-              <Text style={styles.badgeText}>{item.badge}</Text>
+          {item.image_url ? (
+            <View style={styles.imgWrapper}>
+              <Image
+                source={{ uri: item.image_url }}
+                style={styles.newsImage}
+              />
+              <View style={styles.newsBadge}>
+                <Text style={styles.badgeText}>
+                  {(item.category && item.category[0]) || "Top"}
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View
+              style={[
+                styles.imgWrapper,
+                { backgroundColor: colors.lightGray, justifyContent: "center", alignItems: "center" },
+              ]}
+            >
+              <Text style={{ color: colors.gray, fontSize: 12 }}>No Image</Text>
+            </View>
+          )}
+
           <View style={styles.newsText}>
             <Text style={styles.newsTitle} numberOfLines={3}>
-              {item.title}
+              {item.title || "Untitled Article"}
             </Text>
           </View>
         </View>
@@ -117,10 +134,10 @@ export default function Home() {
         style={[styles.statusBar, { paddingTop: insets.top }]}
       />
 
-      {/* Conditional content based on activeNav */}
+      {/* ✅ Conditional content based on activeNav */}
       {activeNav === 0 && (
         <>
-          {/* News Top Tabs */}
+          {/* Tabs */}
           <View style={styles.tabsWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {navigationTabs.map((tab, index) => (
@@ -145,10 +162,10 @@ export default function Home() {
             </ScrollView>
           </View>
 
-          {/* News List */}
+          {/* ✅ News Feed */}
           <FlatList
             data={newsData}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item, index) => item.article_id || index.toString()}
             renderItem={renderNewsCard}
             refreshControl={
               <RefreshControl
@@ -158,6 +175,11 @@ export default function Home() {
               />
             }
             contentContainerStyle={{ paddingBottom: totalBottomHeight }}
+            ListEmptyComponent={() => (
+              <View style={styles.placeholder}>
+                <Text style={styles.placeholderText}>No news available</Text>
+              </View>
+            )}
           />
         </>
       )}
@@ -180,7 +202,7 @@ export default function Home() {
         </View>
       )}
 
-      {/* Bottom Navigation */}
+      {/* ✅ Bottom Navigation */}
       <View style={[styles.bottomNav, { paddingBottom: bottomNavPadding }]}>
         <View style={styles.navWrapper}>
           {bottomNavData.map((nav, index) => (
