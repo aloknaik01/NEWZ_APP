@@ -1,5 +1,6 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,14 +15,19 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import useNewsStore from './store/newsStore.js';
 import { colors } from "./styles/colors";
 import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
 
-const API_KEY = "pub_65094308236047cdbbd364a05e75b898";
+const API_KEY = "pub_9210c099a3084dc48806f1ba36fd67a1";
 
 export default function Home() {
+
+  const router = useRouter();
+  const { setSelectedNews } = useNewsStore();
+
   const [activeTab, setActiveTab] = useState(0);
   const [activeNav, setActiveNav] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,12 +165,17 @@ export default function Home() {
     setActiveNav(index);
   }, []);
 
+  const handlePress = (newsItem) => {
+    setSelectedNews(newsItem);
+    router.push("/newsDetails");
+  };
+
   const renderNewsCard = useCallback(
     ({ item }) => (
       <TouchableOpacity
         style={styles.newsCard}
         activeOpacity={0.95}
-        onPress={() => item.link && Linking.openURL(item.link)}
+        onPress={() =>  handlePress(item)}
       >
         {/* Header with Source & Share */}
         <View style={styles.newsHeader}>
