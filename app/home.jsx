@@ -20,8 +20,10 @@ import { colors } from "./styles/colors";
 import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
+import History from "./history.jsx";
+import Help from "./help.jsx";
 
-const API_KEY = "pub_9210c099a3084dc48806f1ba36fd67a1";
+const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
 
 export default function Home() {
 
@@ -350,19 +352,11 @@ export default function Home() {
       )}
 
       {activeNav === 1 && (
-        <View style={styles.placeholder}>
-          <Ionicons name="time-outline" size={80} color={colors.gray} />
-          <Text style={styles.placeholderText}>Reading History</Text>
-          <Text style={styles.placeholderSubtext}>Your read articles will appear here</Text>
-        </View>
+        <History/>
       )}
 
       {activeNav === 2 && (
-        <View style={styles.placeholder}>
-          <Ionicons name="help-circle-outline" size={80} color={colors.gray} />
-          <Text style={styles.placeholderText}>Help & Support</Text>
-          <Text style={styles.placeholderSubtext}>Get assistance anytime</Text>
-        </View>
+        <Help/>
       )}
 
       {activeNav === 3 && (
