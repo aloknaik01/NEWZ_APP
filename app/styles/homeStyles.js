@@ -255,6 +255,19 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
 
+  // ✅ Infinite Scroll Footer Loader
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  footerLoaderText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+
   // ✅ Enhanced Bottom Nav
   bottomNav: {
     position: "absolute",
@@ -300,5 +313,38 @@ export const styles = StyleSheet.create({
   navLabelActive: {
     color: colors.primary,
     fontWeight: "700",
+  },
+
+  // ✅ Earn Coins Button
+  earnCoinsButton: {
+    marginHorizontal: 14,
+    marginVertical: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 6,
+  },
+  earnButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 10,
+  },
+  earnButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  // ✅ Banner Ad Container
+  bannerAdContainer: {
+    position: "absolute",
+    bottom: 70,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
 });

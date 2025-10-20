@@ -27,15 +27,23 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [newsData, setNewsData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPage, setNextPage] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
   const insets = useSafeAreaInsets();
 
-  // Fetch news based on category
-  const fetchNews = async (category) => {
-    setLoading(true);
+  // ✅ Fetch news based on category
+  const fetchNews = async (category, pageId = null, isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       let categoryParam;
 
-      // "All" tab fetches multiple categories
+      // ✅ "All" tab fetches multiple categories
       if (category === "All") {
         categoryParam = "sports,entertainment,politics,crime,technology";
       } else if (category === "top") {
@@ -44,40 +52,84 @@ export default function Home() {
         categoryParam = category;
       }
 
-      const url = `https://newsdata.io/api/1/latest?apikey=${API_KEY}&language=en&country=in&timezone=Asia/Kolkata&image=1&removeduplicate=1&category=${categoryParam}`;
+      // ✅ Build URL with pagination
+      let url = `https://newsdata.io/api/1/latest?apikey=${API_KEY}&language=en&country=in&timezone=Asia/Kolkata&image=1&removeduplicate=1&category=${categoryParam}`;
+
+      // ✅ Add page parameter if pageId exists
+      if (pageId) {
+        url += `&page=${pageId}`;
+      }
 
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.results && Array.isArray(data.results)) {
-        setNewsData(data.results);
+        if (isLoadMore) {
+          // ✅ Append new data to existing
+          setNewsData(prev => [...prev, ...data.results]);
+        } else {
+          // ✅ Replace with fresh data
+          setNewsData(data.results);
+        }
+
+        // ✅ Store nextPage ID for pagination
+        if (data.nextPage) {
+          setNextPage(data.nextPage);
+          setHasMore(true);
+        } else {
+          setNextPage(null);
+          setHasMore(false);
+        }
       } else {
-        setNewsData([]);
+        if (!isLoadMore) {
+          setNewsData([]);
+        }
+        setHasMore(false);
       }
     } catch (error) {
       console.error("Error fetching news:", error);
-      setNewsData([]);
+      if (!isLoadMore) {
+        setNewsData([]);
+      }
+      setHasMore(false);
     } finally {
-      setLoading(false);
+      if (isLoadMore) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
-  // Initial load
+  // ✅ Initial load
   useEffect(() => {
     fetchNews(navigationTabs[activeTab]);
   }, []);
 
-  // Refetch when tab changes
+  // ✅ Refetch when tab changes (reset pagination)
   useEffect(() => {
+    setNewsData([]);
+    setNextPage(null);
+    setHasMore(true);
     fetchNews(navigationTabs[activeTab]);
   }, [activeTab]);
 
+  // ✅ Pull to refresh (reset pagination)
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    setNextPage(null);
+    setHasMore(true);
     fetchNews(navigationTabs[activeTab]).finally(() => setRefreshing(false));
   }, [activeTab]);
 
-  // Share news function
+  // ✅ Load more when reaching end
+  const handleLoadMore = useCallback(() => {
+    if (!loadingMore && hasMore && nextPage) {
+      fetchNews(navigationTabs[activeTab], nextPage, true);
+    }
+  }, [loadingMore, hasMore, nextPage, activeTab]);
+
+  // ✅ Share news function
   const handleShare = async (item) => {
     try {
       await Share.share({
@@ -127,7 +179,7 @@ export default function Home() {
             </Text>
           </View>
 
-          {/* Share Button */}
+          {/* ✅ Share Button */}
           <TouchableOpacity
             style={styles.shareButton}
             onPress={() => handleShare(item)}
@@ -145,11 +197,13 @@ export default function Home() {
                 source={{ uri: item.image_url }}
                 style={styles.newsImage}
               />
-              <View style={styles.newsBadge}>
-                <Text style={styles.badgeText}>
-                  {(item.category && item.category[0]) || "Top"}
-                </Text>
-              </View>
+              {item.category && item.category[0] && (
+                <View style={styles.newsBadge}>
+                  <Text style={styles.badgeText}>
+                    {item.category[0]}
+                  </Text>
+                </View>
+              )}
             </View>
           ) : (
             <View style={[styles.imgWrapper, styles.noImageWrapper]}>
@@ -169,7 +223,7 @@ export default function Home() {
           </View>
         </View>
 
-        {/*  Coins Badge */}
+        {/* ✅ Coins Badge */}
         <View style={styles.coinsContainer}>
           <LinearGradient
             colors={["#FFD700", "#FFA500"]}
@@ -187,20 +241,32 @@ export default function Home() {
     []
   );
 
+  // ✅ Footer loader for infinite scroll
+  const renderFooter = useCallback(() => {
+    if (!loadingMore) return null;
+
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.footerLoaderText}>Loading more news...</Text>
+      </View>
+    );
+  }, [loadingMore]);
+
   const bottomNavPadding = Math.max(insets.bottom, 0);
   const totalBottomHeight = 70 + bottomNavPadding;
 
   return (
     <View style={styles.container}>
-      {/*   Header */}
+      {/* ✅ Enhanced Header */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={[styles.statusBar, { paddingTop: insets.top }]}
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            {/* <Ionicons name="newspaper" size={28} color="#fff" />*/}
-            <Text style={styles.headerTitle}>Read&Earn</Text>
+            <Ionicons name="newspaper" size={28} color="#fff" />
+            <Text style={styles.headerTitle}>NewsApp</Text>
           </View>
           <View style={styles.coinsHeader}>
             <Ionicons name="wallet" size={20} color="#FFD700" />
@@ -211,7 +277,7 @@ export default function Home() {
 
       {activeNav === 0 && (
         <>
-          {/*  Category Tabs */}
+          {/* ✅ Enhanced Category Tabs */}
           <View style={styles.tabsWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {navigationTabs.map((tab, index) => (
@@ -223,9 +289,6 @@ export default function Home() {
                   ]}
                   onPress={() => setActiveTab(index)}
                 >
-                  {activeTab === index && (
-                    <View style={styles.tabIndicator} />
-                  )}
                   <Text
                     style={[
                       styles.tabText,
@@ -239,8 +302,8 @@ export default function Home() {
             </ScrollView>
           </View>
 
-          {/* News Feed with  Loading */}
-          {loading && !refreshing ? (
+          {/* ✅ News Feed with Infinite Scroll */}
+          {loading && !refreshing && newsData.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingText}>Fetching latest news...</Text>
@@ -259,6 +322,10 @@ export default function Home() {
                 />
               }
               contentContainerStyle={{ paddingBottom: totalBottomHeight }}
+              // ✅ Infinite scroll triggers
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={renderFooter}
               ListEmptyComponent={() => (
                 <View style={styles.placeholder}>
                   <Ionicons name="newspaper-outline" size={80} color={colors.lightGray} />
@@ -295,7 +362,7 @@ export default function Home() {
         </View>
       )}
 
-      {/*  Bottom Navigation */}
+      {/* ✅ Enhanced Bottom Navigation */}
       <View style={[styles.bottomNav, { paddingBottom: bottomNavPadding }]}>
         <View style={styles.navWrapper}>
           {bottomNavData.map((nav, index) => {
