@@ -59,7 +59,9 @@ export default function LoginScreen() {
 
     return (
         <>
-            <StatusBar barStyle="dark-content" backgroundColor="#FAFAFA" />
+            <StatusBar barStyle="dark-content"
+                backgroundColor="#FAFAFA"
+                translucent={false} />
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                     {/* Hero Section */}
