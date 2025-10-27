@@ -9,7 +9,9 @@ import {
   Platform,
   ScrollView,
   StatusBar,
-  Text, TextInput, TouchableOpacity,
+  Text,
+  TextInput,
+  TouchableOpacity,
   View
 } from "react-native";
 import useAuthStore from "./store/authStore";
@@ -27,27 +29,101 @@ export default function LoginScreen() {
   const [nameFocused, setNameFocused] = useState(false);
 
   const router = useRouter();
-  const { login, register, loading, error, user, initialize } = useAuthStore();
+  const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
 
   useEffect(() => {
-    initialize(); // check token on app load
+    initialize();
   }, []);
 
   useEffect(() => {
-    if (user) router.replace("/home"); // auto redirect if logged in
+    if (user) {
+      router.replace("/home");
+    }
   }, [user]);
 
   const handleSubmit = async () => {
+    // Clear previous errors
+    clearError();
+
+    // Validation
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
+
+    if (!email.includes("@")) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
+
     if (!isLogin && !name) {
       Alert.alert("Error", "Please enter your name");
       return;
     }
-    if (isLogin) await login(email, password);
-    else await register(name, email, password);
+
+    if (!isLogin && password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters");
+      return;
+    }
+
+    if (isLogin) {
+      // Login
+      const result = await login(email.toLowerCase().trim(), password);
+
+      if (result.success) {
+        // Success - will auto redirect via useEffect
+        Alert.alert("Success", "Login successful!");
+      } else {
+        if (result.needsVerification) {
+          Alert.alert(
+            "Email Not Verified",
+            "Please verify your email before logging in. Check your inbox.",
+            [
+              { text: "OK", style: "cancel" },
+              {
+                text: "Resend Email",
+                onPress: async () => {
+                  const resendResult = await useAuthStore.getState().resendVerification(email);
+                  Alert.alert(
+                    resendResult.success ? "Success" : "Error",
+                    resendResult.message
+                  );
+                },
+              },
+            ]
+          );
+        } else {
+          Alert.alert("Login Failed", result.message);
+        }
+      }
+    } else {
+      // Register
+      const result = await register(
+        name.trim(),
+        email.toLowerCase().trim(),
+        password
+      );
+
+      if (result.success) {
+        Alert.alert(
+          "Registration Successful!",
+          "Please check your email to verify your account before logging in.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setIsLogin(true);
+                setEmail("");
+                setPassword("");
+                setName("");
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert("Registration Failed", result.message);
+      }
+    }
   };
 
   const toggleMode = () => {
@@ -55,13 +131,26 @@ export default function LoginScreen() {
     setName("");
     setEmail("");
     setPassword("");
+    clearError();
   };
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="#000000ff" translucent={false} barStyle="dark-content" />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <StatusBar
+        style="light"
+        backgroundColor="#000000ff"
+        translucent={false}
+        barStyle="dark-content"
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.container}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.illustrationWrapper}>
@@ -69,7 +158,12 @@ export default function LoginScreen() {
                 <View style={styles.mainIconCircle}>
                   <Ionicons name="newspaper" size={60} color={colors.primary} />
                 </View>
-                <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dollarBadge}>
+                <LinearGradient
+                  colors={[colors.primary, colors.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.dollarBadge}
+                >
                   <Text style={styles.dollarSymbol}>$</Text>
                 </LinearGradient>
                 <View style={styles.trendingBadge}>
@@ -78,50 +172,154 @@ export default function LoginScreen() {
               </View>
             </View>
             <View style={styles.titleContainer}>
-              <Text style={styles.title}><Text style={{ color: colors.primary }}>Read News</Text>{"\n"}<Text style={{ color: colors.secondary }}>& Earn Money</Text></Text>
+              <Text style={styles.title}>
+                <Text style={{ color: colors.primary }}>Read News</Text>
+                {"\n"}
+                <Text style={{ color: colors.secondary }}>& Earn Money</Text>
+              </Text>
             </View>
-            <Text style={styles.subtitle}>Stay informed with latest news and{"\n"}earn rewards for your time</Text>
+            <Text style={styles.subtitle}>
+              Stay informed with latest news and{"\n"}earn rewards for your time
+            </Text>
           </View>
 
           {/* Form Card */}
           <View style={styles.formCard}>
             {/* Tabs */}
             <View style={styles.tabContainer}>
-              <TouchableOpacity onPress={toggleMode} activeOpacity={0.7} style={[styles.tab, !isLogin && styles.tabInactive]}>
-                {isLogin ? <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.tabGradient}><Text style={styles.tabTextActive}>Login</Text></LinearGradient> : <Text style={styles.tabTextInactive}>Login</Text>}
+              <TouchableOpacity
+                onPress={toggleMode}
+                activeOpacity={0.7}
+                style={[styles.tab, !isLogin && styles.tabInactive]}
+              >
+                {isLogin ? (
+                  <LinearGradient
+                    colors={[colors.primary, colors.secondary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.tabGradient}
+                  >
+                    <Text style={styles.tabTextActive}>Login</Text>
+                  </LinearGradient>
+                ) : (
+                  <Text style={styles.tabTextInactive}>Login</Text>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={toggleMode} activeOpacity={0.7} style={[styles.tab, isLogin && styles.tabInactive]}>
-                {!isLogin ? <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.tabGradient}><Text style={styles.tabTextActive}>Register</Text></LinearGradient> : <Text style={styles.tabTextInactive}>Register</Text>}
+              <TouchableOpacity
+                onPress={toggleMode}
+                activeOpacity={0.7}
+                style={[styles.tab, isLogin && styles.tabInactive]}
+              >
+                {!isLogin ? (
+                  <LinearGradient
+                    colors={[colors.primary, colors.secondary]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.tabGradient}
+                  >
+                    <Text style={styles.tabTextActive}>Register</Text>
+                  </LinearGradient>
+                ) : (
+                  <Text style={styles.tabTextInactive}>Register</Text>
+                )}
               </TouchableOpacity>
             </View>
 
             <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>{isLogin ? "Welcome back!" : "Get started!"}</Text>
-              <Text style={styles.formSubtitle}>{isLogin ? "Sign in to continue earning" : "Create account and start earning"}</Text>
+              <Text style={styles.formTitle}>
+                {isLogin ? "Welcome back!" : "Get started!"}
+              </Text>
+              <Text style={styles.formSubtitle}>
+                {isLogin
+                  ? "Sign in to continue earning"
+                  : "Create account and start earning"}
+              </Text>
             </View>
 
             {!isLogin && (
               <View style={styles.inputWrapper}>
-                <View style={[styles.inputContainer, nameFocused && styles.inputContainerFocused]}>
-                  <Ionicons name="person-outline" size={20} color={nameFocused ? colors.primary : colors.gray} style={styles.inputIcon} />
-                  <TextInput style={styles.input} placeholder="Full name" placeholderTextColor={colors.gray} value={name} onChangeText={setName} autoCapitalize="words" onFocus={() => setNameFocused(true)} onBlur={() => setNameFocused(false)} />
+                <View
+                  style={[
+                    styles.inputContainer,
+                    nameFocused && styles.inputContainerFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color={nameFocused ? colors.primary : colors.gray}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full name"
+                    placeholderTextColor={colors.gray}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
+                  />
                 </View>
               </View>
             )}
 
             <View style={styles.inputWrapper}>
-              <View style={[styles.inputContainer, emailFocused && styles.inputContainerFocused]}>
-                <Ionicons name="mail-outline" size={20} color={emailFocused ? colors.primary : colors.gray} style={styles.inputIcon} />
-                <TextInput style={styles.input} placeholder="Email address" placeholderTextColor={colors.gray} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" onFocus={() => setEmailFocused(true)} onBlur={() => setEmailFocused(false)} />
+              <View
+                style={[
+                  styles.inputContainer,
+                  emailFocused && styles.inputContainerFocused,
+                ]}
+              >
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color={emailFocused ? colors.primary : colors.gray}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email address"
+                  placeholderTextColor={colors.gray}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                />
               </View>
             </View>
 
             <View style={styles.inputWrapper}>
-              <View style={[styles.inputContainer, passwordFocused && styles.inputContainerFocused]}>
-                <Ionicons name="lock-closed-outline" size={20} color={passwordFocused ? colors.primary : colors.gray} style={styles.inputIcon} />
-                <TextInput style={[styles.input, { flex: 1 }]} placeholder="Password" placeholderTextColor={colors.gray} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} onFocus={() => setPasswordFocused(true)} onBlur={() => setPasswordFocused(false)} />
+              <View
+                style={[
+                  styles.inputContainer,
+                  passwordFocused && styles.inputContainerFocused,
+                ]}
+              >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color={passwordFocused ? colors.primary : colors.gray}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Password"
+                  placeholderTextColor={colors.gray}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
+                />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color={colors.gray} />
+                  <Ionicons
+                    name={showPassword ? "eye-outline" : "eye-off-outline"}
+                    size={20}
+                    color={colors.gray}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -139,12 +337,27 @@ export default function LoginScreen() {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity onPress={handleSubmit} activeOpacity={0.8} style={styles.submitButtonWrapper} disabled={loading}>
-              <LinearGradient colors={[colors.primary, colors.secondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.submitButton}>
-                {loading ? <ActivityIndicator color={colors.background} /> : <Text style={styles.submitButtonText}>{isLogin ? "Sign in" : "Create account"}</Text>}
+            <TouchableOpacity
+              onPress={handleSubmit}
+              activeOpacity={0.8}
+              style={styles.submitButtonWrapper}
+              disabled={loading}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.submitButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text style={styles.submitButtonText}>
+                    {isLogin ? "Sign in" : "Create account"}
+                  </Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
-
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
