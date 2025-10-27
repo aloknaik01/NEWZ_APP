@@ -2,6 +2,8 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+
+
 import {
   ActivityIndicator,
   FlatList,
@@ -28,6 +30,8 @@ const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
 export default function Home() {
 
   const router = useRouter();
+  const { user } = useAuthStore();
+
   const { setSelectedNews } = useNewsStore();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -39,6 +43,13 @@ export default function Home() {
   const [nextPage, setNextPage] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const insets = useSafeAreaInsets();
+
+  // Check if user is logged in
+  useEffect(() => {
+    if (!user) {
+      router.replace("/");
+    }
+  }, [user]);
 
   // ✅ Fetch news based on category
   const fetchNews = async (category, pageId = null, isLoadMore = false) => {
