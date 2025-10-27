@@ -6,22 +6,22 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  Linking,
   RefreshControl,
   ScrollView,
   Share,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Help from "./help.jsx";
+import History from "./history.jsx";
+import Profile from "./profile.jsx";
 import useNewsStore from './store/newsStore.js';
 import { colors } from "./styles/colors";
 import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
-import History from "./history.jsx";
-import Help from "./help.jsx";
 
 const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
 
@@ -95,9 +95,37 @@ export default function Home() {
         setHasMore(false);
       }
     } catch (error) {
-      console.error("Error fetching news:", error);
+      console.error("", error);
       if (!isLoadMore) {
-        setNewsData([]);
+        setNewsData([{
+          "article_id": "00000",
+          "title": "There is no News wait fot it",
+          "link": "    ",
+          "keywords": [
+            ""
+          ],
+          "creator": [
+            "News Team"
+          ],
+          "description": "we were working in it",
+          "content": "NOT AVAILABLE",
+          "pubDate": new Date(Date.now()),
+          "pubDateTZ": "UTC",
+          "image_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
+          "video_url": null,
+          "source_id": null,
+          "source_name": null,
+          "source_priority": null,
+          "source_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
+          "source_icon": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
+          "language": "none",
+          "country": [
+            "none"
+          ],
+          "category": [
+
+          ],
+        },]);
       }
       setHasMore(false);
     } finally {
@@ -177,7 +205,7 @@ export default function Home() {
       <TouchableOpacity
         style={styles.newsCard}
         activeOpacity={0.95}
-        onPress={() =>  handlePress(item)}
+        onPress={() => handlePress(item)}
       >
         {/* Header with Source & Share */}
         <View style={styles.newsHeader}>
@@ -352,19 +380,15 @@ export default function Home() {
       )}
 
       {activeNav === 1 && (
-        <History/>
+        <History />
       )}
 
       {activeNav === 2 && (
-        <Help/>
+        <Help />
       )}
 
       {activeNav === 3 && (
-        <View style={styles.placeholder}>
-          <Ionicons name="person-circle-outline" size={80} color={colors.gray} />
-          <Text style={styles.placeholderText}>Your Profile</Text>
-          <Text style={styles.placeholderSubtext}>Manage your account</Text>
-        </View>
+        <Profile />
       )}
 
       {/* ✅ Enhanced Bottom Navigation */}

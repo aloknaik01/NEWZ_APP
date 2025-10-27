@@ -16,13 +16,17 @@ const useAuthStore = create((set) => ({
 
   login: async (email, password) => {
     set({ loading: true, error: null });
+    console.log('called')
+    console.log(email, password)
     try {
       const { data } = await axiosClient.post("/auth/login", { email, password });
+    
       console.log(data);
       await AsyncStorage.setItem("token", data.token);
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
       set({ user: data.user, token: data.token, loading: false });
     } catch (err) {
+      console.log(err)
       set({ error: err.response?.data?.errorMessage || "Login failed", loading: false });
     }
   },
