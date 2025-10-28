@@ -12,11 +12,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Image,
+  Linking
 } from "react-native";
+import * as WebBrowser from 'expo-web-browser';
 import useAuthStore from "./store/authStore";
 import { colors } from "./styles/colors";
 import { styles } from "./styles/formStyles";
+
+// Complete the auth session for Google OAuth
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -27,6 +33,7 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const router = useRouter();
   const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
@@ -40,6 +47,79 @@ export default function LoginScreen() {
       router.replace("/home");
     }
   }, [user]);
+
+  // Handle Google OAuth
+  const handleGoogleAuth = async () => {
+    try {
+      setGoogleLoading(true);
+      clearError();
+
+      const BACKEND_URL = "http://10.37.147.108:5000"; // Your backend URL
+      const googleAuthUrl = `${BACKEND_URL}/api/auth/google`;
+
+      // Open Google OAuth in browser
+      const result = await WebBrowser.openAuthSessionAsync(
+        googleAuthUrl,
+        `${BACKEND_URL}/api/auth/google/callback`
+      );
+
+      if (result.type === 'success' && result.url) {
+        // Parse the callback URL for tokens
+        const url = new URL(result.url);
+        const params = new URLSearchParams(url.search);
+
+        const accessToken = params.get('accessToken');
+        const refreshToken = params.get('refreshToken');
+        const userId = params.get('userId');
+        const userEmail = params.get('email');
+        const userName = params.get('name');
+        const coins = params.get('coins');
+
+        if (accessToken && refreshToken) {
+          // Save tokens to AsyncStorage
+          const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+          
+          await AsyncStorage.setItem("accessToken", accessToken);
+          await AsyncStorage.setItem("refreshToken", refreshToken);
+
+          // Create user object
+          const userData = {
+            userId,
+            email: userEmail,
+            fullName: decodeURIComponent(userName || ''),
+            emailVerified: true,
+            loginProvider: 'google',
+            wallet: {
+              availableCoins: parseInt(coins) || 0
+            }
+          };
+
+          await AsyncStorage.setItem("user", JSON.stringify(userData));
+
+          // Update auth store
+          useAuthStore.setState({
+            user: userData,
+            accessToken,
+            refreshToken,
+            loading: false,
+            error: null
+          });
+
+          Alert.alert("Success", "Google login successful!");
+          router.replace("/home");
+        } else {
+          Alert.alert("Error", "Failed to get authentication tokens");
+        }
+      } else if (result.type === 'cancel') {
+        Alert.alert("Cancelled", "Google authentication was cancelled");
+      }
+    } catch (error) {
+      console.error("Google Auth Error:", error);
+      Alert.alert("Error", "Google authentication failed. Please try again.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     // Clear previous errors
@@ -358,6 +438,42 @@ export default function LoginScreen() {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign In Button */}
+            <TouchableOpacity
+              onPress={handleGoogleAuth}
+              activeOpacity={0.8}
+              style={styles.googleButton}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <>
+                  <Image
+                    source={{ uri: 'https://www.google.com/favicon.ico' }}
+                    style={{ width: 20, height: 20 }}
+                  />
+                  <Text style={styles.googleButtonText}>
+                    Continue with Google
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Terms Text */}
+            <Text style={styles.termsText}>
+              By continuing, you agree to our{" "}
+              <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
+              <Text style={styles.termsLink}>Privacy Policy</Text>
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -8,14 +8,9 @@
     "scheme": "newzz",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
-        "UIViewControllerBasedStatusBarAppearance": false
-      }
-    },
+
     "android": {
+      "package": "com.newzz.app",
       "statusBar": {
         "barStyle": "light-content",
         "backgroundColor": "#000000",
@@ -34,6 +29,14 @@
       },
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.newzz.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
     },
     "web": {
       "output": "static",

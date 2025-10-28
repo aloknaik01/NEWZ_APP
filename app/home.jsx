@@ -2,8 +2,6 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-
-
 import {
   ActivityIndicator,
   FlatList,
@@ -25,13 +23,11 @@ import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
 
-const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
+// const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
 
 export default function Home() {
 
   const router = useRouter();
-  const { user } = useAuthStore();
-
   const { setSelectedNews } = useNewsStore();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -44,110 +40,82 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
   const insets = useSafeAreaInsets();
 
-  // Check if user is logged in
-  useEffect(() => {
-    if (!user) {
-      router.replace("/");
-    }
-  }, [user]);
-
   // ✅ Fetch news based on category
-  const fetchNews = async (category, pageId = null, isLoadMore = false) => {
-    if (isLoadMore) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
+
+
+const fetchNews = async (category, pageId = null, isLoadMore = false) => {
+  if (isLoadMore) {
+    setLoadingMore(true);
+  } else {
+    setLoading(true);
+  }
+
+  try {
+    // YOUR BACKEND API USE KARO
+    let url = `http://10.37.147.108:5000/api/news/db?category=${category}&limit=10`;
+    
+    // Add page parameter if exists
+    if (pageId) {
+      url += `&page=${pageId}`;
     }
 
-    try {
-      let categoryParam;
+    console.log('Fetching from backend:', url);
+    
+    const res = await fetch(url);
+    const data = await res.json();
 
-      // ✅ "All" tab fetches multiple categories
-      if (category === "All") {
-        categoryParam = "sports,entertainment,politics,crime,technology";
-      } else if (category === "top") {
-        categoryParam = "top";
+    if (data.success && data.data.results) {
+      if (isLoadMore) {
+        setNewsData(prev => [...prev, ...data.data.results]);
       } else {
-        categoryParam = category;
+        setNewsData(data.data.results);
       }
 
-      // ✅ Build URL with pagination
-      let url = `https://newsdata.io/api/1/latest?apikey=${API_KEY}&language=en&country=in&timezone=Asia/Kolkata&image=1&removeduplicate=1&category=${categoryParam}`;
-
-      // ✅ Add page parameter if pageId exists
-      if (pageId) {
-        url += `&page=${pageId}`;
-      }
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.results && Array.isArray(data.results)) {
-        if (isLoadMore) {
-          // ✅ Append new data to existing
-          setNewsData(prev => [...prev, ...data.results]);
-        } else {
-          // ✅ Replace with fresh data
-          setNewsData(data.results);
-        }
-
-        // ✅ Store nextPage ID for pagination
-        if (data.nextPage) {
-          setNextPage(data.nextPage);
-          setHasMore(true);
-        } else {
-          setNextPage(null);
-          setHasMore(false);
-        }
+      // Next page handling
+      if (data.data.nextPage) {
+        setNextPage(data.data.nextPage);
+        setHasMore(true);
       } else {
-        if (!isLoadMore) {
-          setNewsData([]);
-        }
+        setNextPage(null);
         setHasMore(false);
       }
-    } catch (error) {
-      console.error("", error);
+    } else {
       if (!isLoadMore) {
-        setNewsData([{
-          "article_id": "00000",
-          "title": "There is no News wait fot it",
-          "link": "    ",
-          "keywords": [
-            ""
-          ],
-          "creator": [
-            "News Team"
-          ],
-          "description": "we were working in it",
-          "content": "NOT AVAILABLE",
-          "pubDate": new Date(Date.now()),
-          "pubDateTZ": "UTC",
-          "image_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
-          "video_url": null,
-          "source_id": null,
-          "source_name": null,
-          "source_priority": null,
-          "source_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
-          "source_icon": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
-          "language": "none",
-          "country": [
-            "none"
-          ],
-          "category": [
-
-          ],
-        },]);
+        setNewsData([]);
       }
       setHasMore(false);
-    } finally {
-      if (isLoadMore) {
-        setLoadingMore(false);
-      } else {
-        setLoading(false);
-      }
     }
-  };
+  } catch (error) {
+    console.error("Backend news fetch error:", error);
+    
+    // Fallback data
+    if (!isLoadMore) {
+      setNewsData([{
+        "article_id": "00000",
+        "title": "Connection Issue - Try Again",
+        "link": "#",
+        "keywords": [""],
+        "creator": ["News Team"],
+        "description": "Unable to fetch news from server",
+        "content": "Please check your connection and try again",
+        "pubDate": new Date().toISOString(),
+        "image_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
+        "source_name": "System",
+        "category": ["general"]
+      }]);
+    }
+    setHasMore(false);
+  } finally {
+    if (isLoadMore) {
+      setLoadingMore(false);
+    } else {
+      setLoading(false);
+    }
+  }
+};
 
+// API_KEY LINE COMMENT KARDO YA DELETE KARDO:
+// const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
   // ✅ Initial load
   useEffect(() => {
     fetchNews(navigationTabs[activeTab]);
