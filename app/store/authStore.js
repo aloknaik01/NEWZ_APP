@@ -57,6 +57,7 @@ const useAuthStore = create((set) => ({
   login: async (email, password) => {
     set({ loading: true, error: null });
     try {
+      console.log(email, password)
       const { data } = await axiosClient.post("/auth/login", {
         email,
         password,
