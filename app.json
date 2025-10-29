@@ -3,12 +3,12 @@
     "name": "NEWZZ",
     "slug": "NEWZZ",
     "version": "1.0.0",
+    "owner": "aloknaik01",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "newzz",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "android": {
       "package": "com.newzz.app",
       "statusBar": {
@@ -55,7 +55,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": false,

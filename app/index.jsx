@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Google from "expo-auth-session/providers/google";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,15 +17,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Image,
-  Linking
 } from "react-native";
-import * as WebBrowser from 'expo-web-browser';
 import useAuthStore from "./store/authStore";
 import { colors } from "./styles/colors";
 import { styles } from "./styles/formStyles";
 
-// Complete the auth session for Google OAuth
+// ✅ CRITICAL: Complete auth session
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -38,6 +39,13 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
 
+  // ✅ FIXED: Proper Google OAuth Config
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: "421191923633-9m8uko6m7g6kpejuj369rfbprvefio3m.apps.googleusercontent.com",
+    iosClientId: "421191923633-1bsnqm7ekuls1npggchprqhkj6ij3maa.apps.googleusercontent.com",
+    webClientId: "421191923633-i3euku8l714hrdd2j9ntin21uliglfu2.apps.googleusercontent.com",
+  });
+
   useEffect(() => {
     initialize();
   }, []);
@@ -48,84 +56,118 @@ export default function LoginScreen() {
     }
   }, [user]);
 
-  // Handle Google OAuth
-  const handleGoogleAuth = async () => {
+  // ✅ Handle Google OAuth Response
+  useEffect(() => {
+    if (!response) return;
+
+    if (response.type === "success") {
+      const accessToken = response.authentication?.accessToken;
+      if (accessToken) {
+        handleGoogleSuccess(accessToken);
+      } else {
+        Alert.alert("Error", "Failed to get access token");
+        setGoogleLoading(false);
+      }
+    } else if (response.type === "error") {
+      console.error("Google Auth Error:", response.error);
+      Alert.alert("Error", "Google authentication failed");
+      setGoogleLoading(false);
+    } else if (response.type === "dismiss" || response.type === "cancel") {
+      setGoogleLoading(false);
+    }
+  }, [response]);
+
+  const handleGoogleSuccess = async (accessToken) => {
     try {
-      setGoogleLoading(true);
-      clearError();
-
-      const BACKEND_URL = "http://10.37.147.108:5000"; // Your backend URL
-      const googleAuthUrl = `${BACKEND_URL}/api/auth/google`;
-
-      // Open Google OAuth in browser
-      const result = await WebBrowser.openAuthSessionAsync(
-        googleAuthUrl,
-        `${BACKEND_URL}/api/auth/google/callback`
+      // Get user info from Google
+      const userInfoResponse = await fetch(
+        "https://www.googleapis.com/userinfo/v2/me",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
       );
 
-      if (result.type === 'success' && result.url) {
-        // Parse the callback URL for tokens
-        const url = new URL(result.url);
-        const params = new URLSearchParams(url.search);
+      if (!userInfoResponse.ok) {
+        throw new Error("Failed to fetch user info from Google");
+      }
 
-        const accessToken = params.get('accessToken');
-        const refreshToken = params.get('refreshToken');
-        const userId = params.get('userId');
-        const userEmail = params.get('email');
-        const userName = params.get('name');
-        const coins = params.get('coins');
+      const userInfo = await userInfoResponse.json();
 
-        if (accessToken && refreshToken) {
-          // Save tokens to AsyncStorage
-          const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
-          
-          await AsyncStorage.setItem("accessToken", accessToken);
-          await AsyncStorage.setItem("refreshToken", refreshToken);
+      // Send to backend
+      const BACKEND_URL = "http://10.37.147.108:5000";
+      const backendResponse = await fetch(`${BACKEND_URL}/api/auth/google/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          googleAccessToken: accessToken,
+          email: userInfo.email,
+          name: userInfo.name,
+          googleId: userInfo.id,
+          profileImage: userInfo.picture,
+        }),
+      });
 
-          // Create user object
-          const userData = {
-            userId,
-            email: userEmail,
-            fullName: decodeURIComponent(userName || ''),
-            emailVerified: true,
-            loginProvider: 'google',
-            wallet: {
-              availableCoins: parseInt(coins) || 0
-            }
-          };
+      const data = await backendResponse.json();
 
-          await AsyncStorage.setItem("user", JSON.stringify(userData));
+      if (data.success) {
+        // Save tokens
+        await AsyncStorage.setItem("accessToken", data.data.tokens.accessToken);
+        await AsyncStorage.setItem("refreshToken", data.data.tokens.refreshToken);
 
-          // Update auth store
-          useAuthStore.setState({
-            user: userData,
-            accessToken,
-            refreshToken,
-            loading: false,
-            error: null
-          });
+        const userData = {
+          ...data.data.user,
+          wallet: data.data.wallet,
+        };
 
-          Alert.alert("Success", "Google login successful!");
-          router.replace("/home");
-        } else {
-          Alert.alert("Error", "Failed to get authentication tokens");
-        }
-      } else if (result.type === 'cancel') {
-        Alert.alert("Cancelled", "Google authentication was cancelled");
+        await AsyncStorage.setItem("user", JSON.stringify(userData));
+
+        // Update store
+        useAuthStore.setState({
+          user: userData,
+          accessToken: data.data.tokens.accessToken,
+          refreshToken: data.data.tokens.refreshToken,
+          loading: false,
+          error: null,
+        });
+
+        Alert.alert("Success", "Google login successful!");
+        router.replace("/home");
+      } else {
+        Alert.alert("Error", data.message || "Authentication failed");
       }
     } catch (error) {
-      console.error("Google Auth Error:", error);
-      Alert.alert("Error", "Google authentication failed. Please try again.");
+      console.error("Google auth error:", error);
+      Alert.alert("Error", "Failed to authenticate with Google. Please try again.");
     } finally {
       setGoogleLoading(false);
     }
   };
 
+  const handleGoogleAuth = async () => {
+    try {
+      setGoogleLoading(true);
+      clearError();
+      
+      // ✅ Important: Check if request is ready
+      if (!request) {
+        Alert.alert("Error", "Google authentication not ready. Please try again.");
+        setGoogleLoading(false);
+        return;
+      }
+
+      await promptAsync();
+    } catch (error) {
+      console.error("Google Auth Error:", error);
+      Alert.alert("Error", "Failed to initiate Google authentication");
+      setGoogleLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    // Clear previous errors
     clearError();
 
-    // Validation
     if (!email || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -147,11 +189,9 @@ export default function LoginScreen() {
     }
 
     if (isLogin) {
-      // Login
       const result = await login(email.toLowerCase().trim(), password);
 
       if (result.success) {
-        // Success - will auto redirect via useEffect
         Alert.alert("Success", "Login successful!");
       } else {
         if (result.needsVerification) {
@@ -163,7 +203,9 @@ export default function LoginScreen() {
               {
                 text: "Resend Email",
                 onPress: async () => {
-                  const resendResult = await useAuthStore.getState().resendVerification(email);
+                  const resendResult = await useAuthStore
+                    .getState()
+                    .resendVerification(email);
                   Alert.alert(
                     resendResult.success ? "Success" : "Error",
                     resendResult.message
@@ -177,12 +219,7 @@ export default function LoginScreen() {
         }
       }
     } else {
-      // Register
-      const result = await register(
-        name.trim(),
-        email.toLowerCase().trim(),
-        password
-      );
+      const result = await register(name.trim(), email.toLowerCase().trim(), password);
 
       if (result.success) {
         Alert.alert(
@@ -451,19 +488,17 @@ export default function LoginScreen() {
               onPress={handleGoogleAuth}
               activeOpacity={0.8}
               style={styles.googleButton}
-              disabled={googleLoading}
+              disabled={googleLoading || !request}
             >
               {googleLoading ? (
                 <ActivityIndicator color={colors.text} />
               ) : (
                 <>
                   <Image
-                    source={{ uri: 'https://www.google.com/favicon.ico' }}
+                    source={{ uri: "https://www.google.com/favicon.ico" }}
                     style={{ width: 20, height: 20 }}
                   />
-                  <Text style={styles.googleButtonText}>
-                    Continue with Google
-                  </Text>
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
                 </>
               )}
             </TouchableOpacity>
