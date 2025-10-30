@@ -1,342 +1,431 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Animated, LayoutAnimation, Platform, UIManager, Linking, Alert } from "react-native";
-import BottomNav from "./component/BottomNav";
-import { LinearGradient } from "expo-linear-gradient";
-import { colors } from "./styles/colors";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  StyleSheet,
+  Alert
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import axiosClient from './api/axiosClient';
+import useAuthStore from './store/authStore';
+import useNewsStore from './store/newsStore';
+import { colors } from './styles/colors';
 
-if (Platform.OS === "android") {
-  UIManager.setLayoutAnimationEnabledExperimental &&
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+export default function History() {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const { setSelectedNews } = useNewsStore();
 
-const faqs = [
-  { 
-    question: "App kya hai?", 
-    answer: "Ye app aapko latest news padhne aur coins earn karne ka mauka deta hai. Aap daily news articles padh kar coins earn kar sakte hai aur referral program ke through extra rewards paa sakte hai." 
-  },
-  { 
-    question: "Kaise coins earn karte hai?", 
-    answer: "Aap kisi bhi article ko kam se kam 30 seconds tak padhne par 10 coins earn karte hai. Daily limit 50 articles hai. 7 din tak lagatar padhne par 50 bonus coins bhi milte hai." 
-  },
-  { 
-    question: "Daily limit kya hai?", 
-    answer: "Aap ek din me maximum 50 articles padh sakte hai. Iske baad coins nahi milenge. Ye limit har raat 12 baje reset ho jati hai." 
-  },
-  { 
-    question: "Referral program kaise kaam karta hai?", 
-    answer: "Apne referral code se friends ko invite karo. Jab wo sign up karte hai to aapko 100 coins bonus milta hai. Aapka referral code Profile section me milega." 
-  },
-  { 
-    question: "Coins ka kya kare?", 
-    answer: "Filhal aap apne coins wallet me dekh sakte hai. Jald hi redemption feature aayega jisme aap coins ko cash ya rewards me convert kar paoge." 
-  },
-  { 
-    question: "Account kaise banaye?", 
-    answer: "Sign up button pe click kare, apna naam, email aur password dale. Email verification ke baad aap login kar sakte hai. Google se bhi sign up kar sakte hai." 
-  },
-  { 
-    question: "Email verify kaise kare?", 
-    answer: "Sign up ke baad aapke email par verification link aayega. Us link pe click karke email verify kare. Agar email nahi aaya to 'Resend Email' button use kare." 
-  },
-  { 
-    question: "Password bhool gaye?", 
-    answer: "Login page pe 'Forgot Password' pe click kare aur apna email enter kare. Aapko password reset link email par milega." 
-  },
-  { 
-    question: "Profile edit kaise kare?", 
-    answer: "Profile tab me jaake apni details edit kar sakte hai. Naam, gender, age, phone number change kar sakte hai." 
-  },
-  { 
-    question: "Reading history kaise dekhe?", 
-    answer: "History tab me jaake aap apni saari padhi hui articles dekh sakte hai. Kitne coins earn kiye wo bhi dikhega." 
-  },
-  { 
-    question: "7 day streak bonus kya hai?", 
-    answer: "Agar aap lagatar 7 din articles padhte hai to aapko 50 coins ka bonus milega. Ek din miss karne par streak reset ho jayegi." 
-  },
-  { 
-    question: "Coins kab milte hai?", 
-    answer: "Article ko 30 seconds se zyada padhne ke baad coins automatically aapke wallet me add ho jate hai. Notification bhi aata hai." 
-  },
-  { 
-    question: "News categories konsi hai?", 
-    answer: "All, Lifestyle, Health, Education, Business, Technology, World - ye sabhi categories available hai. Aap koi bhi category select kar sakte hai." 
-  },
-  { 
-    question: "Article share kaise kare?", 
-    answer: "Kisi bhi article pe share button hai. Us par click karke WhatsApp, Facebook ya kahi bhi share kar sakte hai." 
-  },
-  { 
-    question: "Logout kaise kare?", 
-    answer: "Profile tab me jaake niche 'Logout' button hai. Us par click kare." 
-  },
-  { 
-    question: "Account delete kaise kare?", 
-    answer: "Profile me 'Request Account Deletion' button hai. Request submit hone ke baad 7 din me aapka account delete ho jayega." 
-  },
-  { 
-    question: "Support se contact kaise kare?", 
-    answer: "Koi problem ho to support@newsapp.com par email kare ya profile me feedback option use kare." 
-  },
-  { 
-    question: "Google se login kaise kare?", 
-    answer: "Login page pe 'Continue with Google' button pe click kare. Apna Google account select kare aur login ho jayega." 
-  },
-  { 
-    question: "App ka size kitna hai?", 
-    answer: "App ka approximate size 50-60MB hai depending on device." 
-  },
-  { 
-    question: "Offline kaam karta hai?", 
-    answer: "Nahi, internet connection zaroori hai news articles padhne aur coins earn karne ke liye." 
-  },
-];
+  const [history, setHistory] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-const AccordionItem = ({ item, index }) => {
-  const [expanded, setExpanded] = useState(false);
+  // Fetch reading history
+  const fetchHistory = async () => {
+    if (!user) {
+      router.replace('/');
+      return;
+    }
 
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(!expanded);
+    try {
+      setLoading(true);
+      const response = await axiosClient.get('/news/user/stats');
+
+      if (response.data.success) {
+        setHistory(response.data.data.recentReading || []);
+        setStats({
+          wallet: response.data.data.wallet,
+          profile: response.data.data.profile,
+          today: response.data.data.today
+        });
+      }
+    } catch (error) {
+      console.error('Fetch history error:', error);
+      Alert.alert('Error', 'Failed to load reading history');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  return (
-    <View style={styles.accordionItem}>
-      <TouchableOpacity onPress={toggle} activeOpacity={0.85} style={styles.accordionHeader}>
-        <LinearGradient
-          colors={[colors.primary, colors.secondary]}
-          style={styles.leftStrip}
-        />
-        <Text style={styles.question}>{item.question}</Text>
-        <Ionicons 
-          name={expanded ? "chevron-up" : "chevron-down"} 
-          size={22} 
-          color={colors.secondary}
-        />
-      </TouchableOpacity>
-      {expanded && (
-        <View style={styles.answerContainer}>
-          <Text style={styles.answer}>{item.answer}</Text>
-        </View>
-      )}
-    </View>
-  );
-};
-
-export default function Help() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filteredFaqs, setFilteredFaqs] = useState(faqs);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredFaqs(faqs);
-    } else {
-      const filtered = faqs.filter(faq => 
-        faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredFaqs(filtered);
-    }
-  }, [searchQuery]);
+    fetchHistory();
+  }, []);
 
-  const handleContactSupport = () => {
-    Alert.alert(
-      "Contact Support",
-      "Choose how you want to contact us:",
-      [
-        {
-          text: "Email",
-          onPress: () => Linking.openURL("mailto:support@newsapp.com?subject=Support Request")
-        },
-        {
-          text: "WhatsApp",
-          onPress: () => Linking.openURL("https://wa.me/1234567890?text=Hi, I need help with the News App")
-        },
-        {
-          text: "Cancel",
-          style: "cancel"
-        }
-      ]
-    );
+  // Pull to refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchHistory();
+    setRefreshing(false);
+  }, []);
+
+  // Handle article click
+  const handleArticleClick = (item) => {
+    if (item.link && item.link !== '#') {
+      // Create a news item object from history data
+      const newsItem = {
+        article_id: item.id,
+        title: item.title,
+        description: item.description,
+        link: item.link,
+        image_url: item.image_url,
+        source_name: item.source,
+        category: [item.category],
+        pubDate: item.reading_date
+      };
+
+      setSelectedNews(newsItem);
+      router.push('/newsDetails');
+    } else {
+      Alert.alert('Unavailable', 'This article is no longer available');
+    }
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Help & Support</Text>
-        <TouchableOpacity 
-          style={styles.contactButton}
-          onPress={handleContactSupport}
-        >
-          <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {filteredFaqs.length > 0 ? (
-          filteredFaqs.map((faq, index) => (
-            <AccordionItem key={index} item={faq} index={index} />
-          ))
-        ) : (
-          <View style={styles.noResults}>
-            <Ionicons name="search-outline" size={60} color={colors.gray} />
-            <Text style={styles.noResultsText}>No FAQs found</Text>
-            <Text style={styles.noResultsSubtext}>Try different keywords</Text>
-          </View>
-        )}
-
-        {/* Contact Card */}
-        <View style={styles.contactCard}>
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.contactGradient}
-          >
-            <Ionicons name="help-circle" size={40} color="#fff" />
-            <Text style={styles.contactTitle}>Still Need Help?</Text>
-            <Text style={styles.contactText}>
-              Our support team is here to help you 24/7
-            </Text>
-            <TouchableOpacity 
-              style={styles.contactActionButton}
-              onPress={handleContactSupport}
-            >
-              <Text style={styles.contactActionText}>Contact Support</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.primary} />
-            </TouchableOpacity>
-          </LinearGradient>
+  // Render history card
+  const renderHistoryCard = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.9}
+      onPress={() => handleArticleClick(item)}
+    >
+      <View style={styles.cardContent}>
+        {/* Thumbnail */}
+        <View style={styles.thumbnailContainer}>
+          {item.image_url ? (
+            <Image
+              source={{ uri: item.image_url }}
+              style={styles.thumbnail}
+            />
+          ) : (
+            <View style={[styles.thumbnail, styles.placeholderThumbnail]}>
+              <Ionicons name="newspaper-outline" size={30} color={colors.gray} />
+            </View>
+          )}
+          
+          {/* Category badge */}
+          {item.category && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryText}>{item.category}</Text>
+            </View>
+          )}
         </View>
-      </ScrollView>
-      
-      <BottomNav />
+
+        {/* Content */}
+        <View style={styles.textContent}>
+          <Text style={styles.title} numberOfLines={2}>
+            {item.title}
+          </Text>
+          
+          <View style={styles.metaRow}>
+            <Ionicons name="calendar-outline" size={12} color={colors.gray} />
+            <Text style={styles.metaText}>
+              {new Date(item.reading_date).toLocaleDateString()}
+            </Text>
+          </View>
+
+          <View style={styles.metaRow}>
+            <Ionicons name="time-outline" size={12} color={colors.gray} />
+            <Text style={styles.metaText}>{item.time_spent}s read</Text>
+          </View>
+
+          {/* Coins earned */}
+          {item.coins_earned > 0 && (
+            <View style={styles.coinsContainer}>
+              <Ionicons name="logo-bitcoin" size={14} color="#FFD700" />
+              <Text style={styles.coinsText}>+{item.coins_earned} coins</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  // Stats header
+  const ListHeaderComponent = () => (
+    <View style={styles.header}>
+      {/* Stats cards */}
+      {stats && (
+        <LinearGradient
+          colors={[colors.primary, colors.secondary]}
+          style={styles.statsCard}
+        >
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {stats.profile.total_articles_read}
+              </Text>
+              <Text style={styles.statLabel}>Total Read</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {stats.wallet.total_earned}
+              </Text>
+              <Text style={styles.statLabel}>Coins Earned</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {stats.profile.current_streak}
+              </Text>
+              <Text style={styles.statLabel}>Day Streak</Text>
+            </View>
+          </View>
+
+          {/* Today's stats */}
+          <View style={styles.todayCard}>
+            <Text style={styles.todayTitle}>📚 Today's Progress</Text>
+            <View style={styles.todayRow}>
+              <Text style={styles.todayText}>
+                {stats.today.articles_read}/50 articles
+              </Text>
+              <Text style={styles.todayCoins}>
+                +{stats.today.coins_earned} coins
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+      )}
+
+      <Text style={styles.sectionTitle}>Reading History</Text>
+    </View>
+  );
+
+  // Empty state
+  const ListEmptyComponent = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="book-outline" size={80} color={colors.lightGray} />
+      <Text style={styles.emptyText}>No reading history yet</Text>
+      <Text style={styles.emptySubtext}>
+        Start reading articles to see your history here
+      </Text>
+      <TouchableOpacity
+        style={styles.exploreButton}
+        onPress={() => router.push('/home')}
+      >
+        <Text style={styles.exploreButtonText}>Explore News</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading history...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={history}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderHistoryCard}
+        ListHeaderComponent={ListHeaderComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === "ios" ? 50 : 16,
+  container: {
+    flex: 1,
+    backgroundColor: colors.lightGray,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.lightGray,
   },
-  contactButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: colors.text,
   },
-  scrollContainer: {
-    padding: 15,
+  listContent: {
     paddingBottom: 100,
   },
-  accordionItem: {
-    marginBottom: 15,
-    borderRadius: 25,
-    backgroundColor: colors.lightGray,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-    overflow: "hidden",
+  header: {
+    padding: 16,
   },
-  accordionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  statsCard: {
+    borderRadius: 16,
     padding: 20,
-    backgroundColor: colors.background,
-    borderRadius: 25,
+    marginBottom: 20,
+    elevation: 4,
   },
-  leftStrip: {
-    width: 6,
-    height: "100%",
-    borderRadius: 3,
-    marginRight: 15,
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
   },
-  question: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: colors.primary,
-    flex: 1,
+  statItem: {
+    alignItems: 'center',
   },
-  answerContainer: {
-    padding: 20,
-    backgroundColor: colors.background,
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
   },
-  answer: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 24,
+  statLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
   },
-  noResults: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
+  statDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
   },
-  noResultsText: {
+  todayCard: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  todayTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  todayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  todayText: {
+    fontSize: 13,
+    color: '#fff',
+  },
+  todayCoins: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
+  sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  card: {
+    backgroundColor: colors.background,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    padding: 12,
+  },
+  thumbnailContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  thumbnail: {
+    width: 100,
+    height: 80,
+    borderRadius: 8,
+  },
+  placeholderThumbnail: {
+    backgroundColor: colors.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  categoryText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  textContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    color: colors.gray,
+    marginLeft: 4,
+  },
+  coinsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  coinsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFD700',
+    marginLeft: 4,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
     marginTop: 16,
+    textAlign: 'center',
   },
-  noResultsSubtext: {
+  emptySubtext: {
     fontSize: 14,
     color: colors.gray,
     marginTop: 8,
+    textAlign: 'center',
   },
-  contactCard: {
+  exploreButton: {
     marginTop: 20,
-    marginBottom: 20,
-    borderRadius: 20,
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  contactGradient: {
-    padding: 30,
-    alignItems: "center",
-  },
-  contactTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-    marginTop: 12,
-  },
-  contactText: {
-    fontSize: 14,
-    color: "#fff",
-    opacity: 0.9,
-    textAlign: "center",
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  contactActionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 25,
-    gap: 8,
   },
-  contactActionText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.primary,
+  exploreButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
