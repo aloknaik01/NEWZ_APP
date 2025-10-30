@@ -86,7 +86,7 @@ export default function LoginScreen() {
       clearError();
 
       const GOOGLE_CLIENT_ID = "421191923633-vduj7jaejl0ilpftq8k7ce31gl1dq5d9.apps.googleusercontent.com";
-      const REDIRECT_URI = "newzz://oauth2redirect";
+      const REDIRECT_URI = "https://auth.expo.io/@aloknaik01/newzz";
       
       const authUrl = 
         `https://accounts.google.com/o/oauth2/v2/auth?` +
