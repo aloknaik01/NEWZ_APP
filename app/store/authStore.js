@@ -64,6 +64,7 @@ const useAuthStore = create((set) => ({
       });
 
       if (data.success) {
+        console.log(data)
         const { user, wallet, tokens } = data.data;
 
         // Save tokens
@@ -85,6 +86,7 @@ const useAuthStore = create((set) => ({
         return { success: true };
       }
     } catch (err) {
+      console.log(err)
       const errorMsg = err.response?.data?.message || "Login failed";
       const needsVerification = err.response?.data?.data?.needsVerification;
 

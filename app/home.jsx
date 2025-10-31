@@ -52,7 +52,7 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
 
   try {
     // YOUR BACKEND API USE KARO
-    let url = `http://10.37.147.108:5000/api/news/db?category=${category}&limit=10`;
+    let url = `http://10.184.105.108:5000/api/news/db?category=${category}&limit=10`;
     
     // Add page parameter if exists
     if (pageId) {
