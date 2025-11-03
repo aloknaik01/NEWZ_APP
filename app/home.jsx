@@ -1,3 +1,4 @@
+// app/home.jsx
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -14,21 +15,23 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import axiosClient from "./api/axiosClient";
 import Help from "./help.jsx";
 import History from "./history.jsx";
 import Profile from "./profile.jsx";
+import useAuthStore from './store/authStore.js';
 import useNewsStore from './store/newsStore.js';
 import { colors } from "./styles/colors";
 import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
-
-// const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+ 
 
 export default function Home() {
-
   const router = useRouter();
   const { setSelectedNews } = useNewsStore();
+  const { user } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState(0);
   const [activeNav, setActiveNav] = useState(0);
@@ -40,88 +43,90 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
   const insets = useSafeAreaInsets();
 
-  // ✅ Fetch news based on category
+
+ 
+  useEffect(() => {
+    if (!user) {
+      router.replace("/");
+    }
+  }, [user]);
 
 
-const fetchNews = async (category, pageId = null, isLoadMore = false) => {
-  if (isLoadMore) {
-    setLoadingMore(true);
-  } else {
-    setLoading(true);
-  }
+  // ✅ Get coins from user state
+  const availableCoins = user?.wallet?.availableCoins || 0;
 
-  try {
-    // YOUR BACKEND API USE KARO
-    let url = `http://10.184.105.108:5000/api/news/db?category=${category}&limit=10`;
-    
-    // Add page parameter if exists
-    if (pageId) {
-      url += `&page=${pageId}`;
+  // ✅ Fetch news from backend (auto-hides read articles)
+  const fetchNews = async (category, pageId = null, isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
     }
 
-    console.log('Fetching from backend:', url);
-    
-    const res = await fetch(url);
-    const data = await res.json();
+    try {
+      let url = `/news/db?category=${category}&limit=10`;
 
-    if (data.success && data.data.results) {
-      if (isLoadMore) {
-        setNewsData(prev => [...prev, ...data.data.results]);
-      } else {
-        setNewsData(data.data.results);
+      if (pageId) {
+        url += `&page=${pageId}`;
       }
 
-      // Next page handling
-      if (data.data.nextPage) {
-        setNextPage(data.data.nextPage);
-        setHasMore(true);
+      console.log('Fetching from backend:', url);
+
+      const res = await axiosClient.get(url);
+      const data = res.data;
+
+      if (data.success && data.data.results) {
+        if (isLoadMore) {
+          setNewsData(prev => [...prev, ...data.data.results]);
+        } else {
+          setNewsData(data.data.results);
+        }
+
+        if (data.data.nextPage) {
+          setNextPage(data.data.nextPage);
+          setHasMore(true);
+        } else {
+          setNextPage(null);
+          setHasMore(false);
+        }
       } else {
-        setNextPage(null);
+        if (!isLoadMore) {
+          setNewsData([]);
+        }
         setHasMore(false);
       }
-    } else {
+    } catch (error) {
+      console.error("Backend news fetch error:", error);
+
       if (!isLoadMore) {
-        setNewsData([]);
+        setNewsData([{
+          "article_id": "00000",
+          "title": "Connection Issue - Try Again",
+          "link": "#",
+          "keywords": [""],
+          "creator": ["News Team"],
+          "description": "Unable to fetch news from server. Please check your connection.",
+          "content": "Please check your connection and try again",
+          "pubDate": new Date().toISOString(),
+          "image_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
+          "source_name": "System",
+          "category": ["general"]
+        }]);
       }
       setHasMore(false);
+    } finally {
+      if (isLoadMore) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
-  } catch (error) {
-    console.error("Backend news fetch error:", error);
-    
-    // Fallback data
-    if (!isLoadMore) {
-      setNewsData([{
-        "article_id": "00000",
-        "title": "Connection Issue - Try Again",
-        "link": "#",
-        "keywords": [""],
-        "creator": ["News Team"],
-        "description": "Unable to fetch news from server",
-        "content": "Please check your connection and try again",
-        "pubDate": new Date().toISOString(),
-        "image_url": "https://img.freepik.com/premium-vector/modern-design-concept-result-found_637684-282.jpg",
-        "source_name": "System",
-        "category": ["general"]
-      }]);
-    }
-    setHasMore(false);
-  } finally {
-    if (isLoadMore) {
-      setLoadingMore(false);
-    } else {
-      setLoading(false);
-    }
-  }
-};
+  };
 
-// API_KEY LINE COMMENT KARDO YA DELETE KARDO:
-// const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
-  // ✅ Initial load
   useEffect(() => {
     fetchNews(navigationTabs[activeTab]);
   }, []);
 
-  // ✅ Refetch when tab changes (reset pagination)
   useEffect(() => {
     setNewsData([]);
     setNextPage(null);
@@ -129,7 +134,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
     fetchNews(navigationTabs[activeTab]);
   }, [activeTab]);
 
-  // ✅ Pull to refresh (reset pagination)
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setNextPage(null);
@@ -137,14 +141,12 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
     fetchNews(navigationTabs[activeTab]).finally(() => setRefreshing(false));
   }, [activeTab]);
 
-  // ✅ Load more when reaching end
   const handleLoadMore = useCallback(() => {
     if (!loadingMore && hasMore && nextPage) {
       fetchNews(navigationTabs[activeTab], nextPage, true);
     }
   }, [loadingMore, hasMore, nextPage, activeTab]);
 
-  // ✅ Share news function
   const handleShare = async (item) => {
     try {
       await Share.share({
@@ -186,7 +188,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
         activeOpacity={0.95}
         onPress={() => handlePress(item)}
       >
-        {/* Header with Source & Share */}
         <View style={styles.newsHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.newsSource}>
@@ -194,12 +195,14 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
             </Text>
             <Text style={styles.newsTime}>
               {item.pubDate
-                ? new Date(item.pubDate).toLocaleDateString()
+                ? new Date(item.pubDate).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                })
                 : "Today"}
             </Text>
           </View>
 
-          {/* ✅ Share Button */}
           <TouchableOpacity
             style={styles.shareButton}
             onPress={() => handleShare(item)}
@@ -209,7 +212,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
           </TouchableOpacity>
         </View>
 
-        {/* Content */}
         <View style={styles.newsContent}>
           {item.image_url ? (
             <View style={styles.imgWrapper}>
@@ -220,7 +222,7 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
               {item.category && item.category[0] && (
                 <View style={styles.newsBadge}>
                   <Text style={styles.badgeText}>
-                    {item.category[0]}
+                    {item.category[0].toUpperCase()}
                   </Text>
                 </View>
               )}
@@ -243,7 +245,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
           </View>
         </View>
 
-        {/* ✅ Coins Badge */}
         <View style={styles.coinsContainer}>
           <LinearGradient
             colors={["#FFD700", "#FFA500"]}
@@ -252,7 +253,7 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
             style={styles.coinsBadge}
           >
             <Ionicons name="logo-bitcoin" size={16} color="#fff" />
-            <Text style={styles.coinsText}>+50 Coins</Text>
+            <Text style={styles.coinsText}>+10 Coins</Text>
           </LinearGradient>
           <Text style={styles.readMoreText}>Tap to read & earn</Text>
         </View>
@@ -261,7 +262,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
     []
   );
 
-  // ✅ Footer loader for infinite scroll
   const renderFooter = useCallback(() => {
     if (!loadingMore) return null;
 
@@ -278,7 +278,7 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
 
   return (
     <View style={styles.container}>
-      {/* ✅ Enhanced Header */}
+      {/* Header with LIVE wallet balance */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={[styles.statusBar, { paddingTop: insets.top }]}
@@ -290,14 +290,15 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
           </View>
           <View style={styles.coinsHeader}>
             <Ionicons name="wallet" size={20} color="#FFD700" />
-            <Text style={styles.coinsHeaderText}>500,000</Text>
+            <Text style={styles.coinsHeaderText}>
+              {availableCoins.toLocaleString()}
+            </Text>
           </View>
         </View>
       </LinearGradient>
 
       {activeNav === 0 && (
         <>
-          {/* ✅ Enhanced Category Tabs */}
           <View style={styles.tabsWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {navigationTabs.map((tab, index) => (
@@ -315,14 +316,13 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
                       activeTab === index && styles.tabTextActive,
                     ]}
                   >
-                    {tab === "All" ? "🔥 All" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === "All" ? "🔥 All" : tab}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
 
-          {/* ✅ News Feed with Infinite Scroll */}
           {loading && !refreshing && newsData.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -342,7 +342,6 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
                 />
               }
               contentContainerStyle={{ paddingBottom: totalBottomHeight }}
-              // ✅ Infinite scroll triggers
               onEndReached={handleLoadMore}
               onEndReachedThreshold={0.5}
               ListFooterComponent={renderFooter}
@@ -358,19 +357,11 @@ const fetchNews = async (category, pageId = null, isLoadMore = false) => {
         </>
       )}
 
-      {activeNav === 1 && (
-        <History />
-      )}
+      {activeNav === 1 && <History />}
+      {activeNav === 2 && <Help />}
+      {activeNav === 3 && <Profile />}
 
-      {activeNav === 2 && (
-        <Help />
-      )}
-
-      {activeNav === 3 && (
-        <Profile />
-      )}
-
-      {/* ✅ Enhanced Bottom Navigation */}
+      {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { paddingBottom: bottomNavPadding }]}>
         <View style={styles.navWrapper}>
           {bottomNavData.map((nav, index) => {

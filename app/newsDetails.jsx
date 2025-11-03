@@ -1,6 +1,7 @@
+// app/newsDetails.jsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Image,
   Linking,
@@ -9,9 +10,10 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StatusBar } from "react-native-web";
+import { StatusBar } from "expo-status-bar";
 import axiosClient from "./api/axiosClient";
 import useAuthStore from "./store/authStore";
 import useNewsStore from "./store/newsStore";
@@ -20,22 +22,24 @@ import { styles } from "./styles/newsDeatalsStyles";
 export default function NewsDetails() {
   const [latestNews, setLatestNews] = useState([]);
   const [loadingLatest, setLoadingLatest] = useState(false);
-  const [readingStartTime] = useState(Date.now());
   const [hasTracked, setHasTracked] = useState(false);
-
-  const API_KEY = "pub_a81e8ada4daa4f15933fe3e2ece357e3";
+  const readingStartTime = useRef(Date.now());
 
   const router = useRouter();
-  const { selectedNews } = useNewsStore();
+  const { selectedNews, setSelectedNews } = useNewsStore();
   const { user, updateUser } = useAuthStore();
 
   const fetchLatestNews = async () => {
+    if (!selectedNews) return;
+
     setLoadingLatest(true);
     try {
-      const url = `https://newsdata.io/api/1/latest?apikey=${API_KEY}&language=en&country=in&timezone=Asia/Kolkata&image=1&removeduplicate=1&category=business,education,environment,food,health`;
-      const res = await fetch(url);
-      const data = await res.json();
-      setLatestNews(data.results);
+      const url = `/news/latest/feed?limit=30&excludeId=${selectedNews.article_id}`;
+      const res = await axiosClient.get(url);
+      
+      if (res.data.success && res.data.data.results) {
+        setLatestNews(res.data.data.results);
+      }
     } catch (err) {
       console.log("Error fetching latest news:", err);
     } finally {
@@ -43,20 +47,19 @@ export default function NewsDetails() {
     }
   };
 
-  // Track reading after 30 seconds
   useEffect(() => {
     if (!selectedNews || !user || hasTracked) return;
 
     const timer = setTimeout(async () => {
       await trackReading();
-    }, 30000); // 30 seconds
+    }, 30000);
 
     return () => clearTimeout(timer);
   }, [selectedNews, user, hasTracked]);
 
   const trackReading = async () => {
     try {
-      const timeSpent = Math.floor((Date.now() - readingStartTime) / 1000);
+      const timeSpent = Math.floor((Date.now() - readingStartTime.current) / 1000);
 
       if (timeSpent < 30) return;
 
@@ -70,7 +73,6 @@ export default function NewsDetails() {
         setHasTracked(true);
 
         if (earned > 0) {
-          // Update user coins in store
           updateUser({
             wallet: {
               ...user.wallet,
@@ -81,49 +83,73 @@ export default function NewsDetails() {
 
           Alert.alert(
             "🎉 Coins Earned!",
-            `You earned ${earned} coins for reading this article!\n\nArticles read today: ${response.data.data.articlesReadToday}/${response.data.data.dailyLimit}`,
-            [{ text: "Awesome!", style: "default" }]
+            `You earned ${earned} coins!\n\n✅ Unlimited reading!`,
+            [{ 
+              text: "Continue Reading", 
+              onPress: () => {
+                // Remove from latest news
+                setLatestNews(prev => prev.filter(item => item.article_id !== selectedNews.article_id));
+              }
+            }]
           );
 
-          // Check for streak bonus
           if (response.data.data.streakBonus > 0) {
             Alert.alert(
               "🔥 Streak Bonus!",
-              `You earned ${response.data.data.streakBonus} bonus coins for your 7-day reading streak!`,
+              `+${response.data.data.streakBonus} bonus coins for 7-day streak!`,
               [{ text: "Amazing!", style: "default" }]
             );
           }
         }
       }
     } catch (error) {
-      console.error("Track reading error:", error);
       if (error.response?.status === 400) {
-        // Already read or daily limit reached
-        console.log(error.response?.data?.message);
+        console.log("Already read today");
+        setHasTracked(true);
+      } else if (error.response?.status === 404) {
+        console.log("Article not found");
+      } else {
+        console.error("Track reading error:", error);
       }
     }
   };
 
   useEffect(() => {
     fetchLatestNews();
-  }, []);
+    readingStartTime.current = Date.now();
+    setHasTracked(false);
+  }, [selectedNews]);
 
   if (!selectedNews) {
     return (
       <View style={styles.centered}>
+        <Ionicons name="newspaper-outline" size={80} color="#ccc" />
         <Text style={styles.noDataText}>No news data found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.goBackBtn}>
-          <Text style={styles.goBackText}>Go Back</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={{ color: "#FF4B2B", fontSize: 16, marginTop: 10, fontWeight: "600" }}>
+            Go Back
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  // ✅ Handle latest news click with back navigation
+  const handleLatestNewsClick = (item) => {
+    // Go back first
+    router.back();
+    
+    // Then update selected news after a short delay
+    setTimeout(() => {
+      setSelectedNews(item);
+      router.push("/newsDetails");
+    }, 100);
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+      <StatusBar style="dark" backgroundColor="#ffffff" translucent={false} />
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.statusBar}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
@@ -135,20 +161,17 @@ export default function NewsDetails() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-          {/* Article Image */}
+        <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
           {selectedNews.image_url && (
             <View style={styles.imageContainer}>
               <Image source={{ uri: selectedNews.image_url }} style={styles.image} />
             </View>
           )}
 
-          {/* Title */}
           <Text style={styles.title}>{selectedNews.title}</Text>
 
-          {/* Creator & Date */}
           <Text style={styles.meta}>
-            By {(selectedNews.creator || []).join(", ")} |{" "}
+            By {(selectedNews.creator || ["Unknown"]).join(", ")} |{" "}
             {selectedNews.pubDate
               ? new Date(selectedNews.pubDate).toLocaleString("en-IN", {
                   day: "numeric",
@@ -160,7 +183,6 @@ export default function NewsDetails() {
               : "Date not available"}
           </Text>
 
-          {/* Coins Info Banner */}
           {user && !hasTracked && (
             <View style={styles.card}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -170,14 +192,13 @@ export default function NewsDetails() {
                     📖 Read for 30+ seconds to earn 10 coins!
                   </Text>
                   <Text style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                    Stay on this page and read the full article
+                    ✅ Unlimited reading - No daily limit!
                   </Text>
                 </View>
               </View>
             </View>
           )}
 
-          {/* Description Card */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.description}>
@@ -185,28 +206,25 @@ export default function NewsDetails() {
             </Text>
           </View>
 
-          {/* Content Card */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Content</Text>
             <Text style={styles.description}>
-              {selectedNews.content || "Full content is available only in paid plans."}
+              {selectedNews.content || selectedNews.description || "Full content is available at the source."}
             </Text>
           </View>
 
-          {/* Source Card */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Source</Text>
             <View style={styles.sourceRow}>
               {selectedNews.source_icon && (
                 <Image source={{ uri: selectedNews.source_icon }} style={styles.sourceIcon} />
               )}
-              <TouchableOpacity onPress={() => Linking.openURL(selectedNews.source_url)}>
-                <Text style={styles.sourceText}>{selectedNews.source_name}</Text>
+              <TouchableOpacity onPress={() => selectedNews.link && Linking.openURL(selectedNews.link)}>
+                <Text style={styles.sourceText}>{selectedNews.source_name || "Unknown Source"}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Keywords */}
           {(selectedNews.keywords || []).length > 0 && (
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Keywords</Text>
@@ -220,7 +238,6 @@ export default function NewsDetails() {
             </View>
           )}
 
-          {/* Categories */}
           {(selectedNews.category || []).length > 0 && (
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Categories</Text>
@@ -234,151 +251,76 @@ export default function NewsDetails() {
             </View>
           )}
 
-          {/* Latest News */}
-          {latestNews.length > 0 && (
+          {loadingLatest ? (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <ActivityIndicator size="large" color="#FF4B2B" />
+              <Text style={{ color: "#666", marginTop: 10, fontSize: 14 }}>
+                Loading latest news...
+              </Text>
+            </View>
+          ) : latestNews.length > 0 ? (
             <View style={{ marginTop: 20, paddingHorizontal: 16 }}>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: "#ee0101ff",
-                  marginBottom: 10,
-                }}
-              >
-                📰 Latest News
+              <Text style={{ fontSize: 18, fontWeight: "700", color: "#FF4B2B", marginBottom: 10 }}>
+                📰 Latest News ({latestNews.length} articles)
               </Text>
 
               {latestNews.map((item, index) => (
                 <TouchableOpacity
-                  key={index}
+                  key={`${item.article_id}-${index}`}
                   style={{
                     marginBottom: 20,
                     borderRadius: 16,
-                    backgroundColor: "#1c1c1c",
+                    backgroundColor: "#fff",
                     overflow: "hidden",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 5 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 6,
-                    elevation: 5,
+                    elevation: 3,
                   }}
                   activeOpacity={0.9}
-                  onPress={() => {
-                    useNewsStore.getState().setSelectedNews(item);
-                    router.push("/newsDetails");
-                  }}
+                  onPress={() => handleLatestNewsClick(item)}
                 >
                   <View style={{ position: "relative" }}>
                     {item.image_url ? (
-                      <Image
-                        source={{ uri: item.image_url }}
-                        style={{ width: "100%", height: 200 }}
-                      />
+                      <Image source={{ uri: item.image_url }} style={{ width: "100%", height: 200, resizeMode: "cover" }} />
                     ) : (
-                      <View
-                        style={{
-                          width: "100%",
-                          height: 200,
-                          backgroundColor: "#333",
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Ionicons name="image-outline" size={40} color="#888" />
+                      <View style={{ width: "100%", height: 200, backgroundColor: "#f0f0f0", justifyContent: "center", alignItems: "center" }}>
+                        <Ionicons name="image-outline" size={40} color="#ccc" />
                       </View>
                     )}
 
-                    <View
-                      style={{
-                        position: "absolute",
-                        width: "100%",
-                        height: "100%",
-                        backgroundColor: "rgba(0,0,0,0.35)",
-                      }}
-                    />
-
                     {item.category && item.category[0] && (
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 12,
-                          left: 12,
-                          backgroundColor: "#FF4B2B",
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
-                          borderRadius: 12,
-                        }}
-                      >
-                        <Text
-                          style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}
-                        >
-                          {item.category[0]}
+                      <View style={{ position: "absolute", top: 12, left: 12, backgroundColor: "#FF4B2B", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
+                        <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>
+                          {item.category[0].toUpperCase()}
                         </Text>
                       </View>
                     )}
-
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
-                        backgroundColor: "rgba(0,0,0,0.45)",
-                        padding: 8,
-                        borderRadius: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: "#fff",
-                          fontSize: 18,
-                          fontWeight: "700",
-                          lineHeight: 22,
-                        }}
-                        numberOfLines={2}
-                      >
-                        {item.title}
-                      </Text>
-                    </View>
                   </View>
 
                   <View style={{ padding: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#333", marginBottom: 6 }} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+
                     {item.description && (
-                      <Text
-                        style={{
-                          color: "#ccc",
-                          fontSize: 14,
-                          lineHeight: 20,
-                          marginBottom: 8,
-                        }}
-                        numberOfLines={3}
-                      >
+                      <Text style={{ color: "#666", fontSize: 13, lineHeight: 18, marginBottom: 8 }} numberOfLines={2}>
                         {item.description}
                       </Text>
                     )}
 
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ color: "#aaa", fontSize: 12 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ color: "#999", fontSize: 11 }}>
                         {item.source_name || "Unknown"} •{" "}
-                        {item.pubDate
-                          ? new Date(item.pubDate).toLocaleDateString()
-                          : ""}
+                        {item.pubDate ? new Date(item.pubDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : ""}
                       </Text>
-                      <Ionicons
-                        name="chevron-forward-outline"
-                        size={20}
-                        color="#FF4B2B"
-                      />
+                      <Ionicons name="chevron-forward-outline" size={20} color="#FF4B2B" />
                     </View>
                   </View>
                 </TouchableOpacity>
               ))}
+            </View>
+          ) : (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <Ionicons name="newspaper-outline" size={50} color="#ccc" />
+              <Text style={{ color: "#999", marginTop: 10, fontSize: 14 }}>No more news available</Text>
             </View>
           )}
         </ScrollView>

@@ -8,6 +8,7 @@ const useAuthStore = create((set) => ({
   refreshToken: null,
   loading: false,
   error: null,
+  isInitialized: false,
 
   // Initialize - Check if user is logged in
   initialize: async () => {
@@ -18,10 +19,13 @@ const useAuthStore = create((set) => ({
 
       if (accessToken && refreshToken && userStr) {
         const user = JSON.parse(userStr);
-        set({ user, accessToken, refreshToken });
+        set({ user, accessToken, refreshToken, isInitialized: true });
+      } else {
+        set({ user: null, accessToken: null, refreshToken: null, isInitialized: true });
       }
     } catch (error) {
       console.error("Initialize error:", error);
+      set({ user: null, accessToken: null, refreshToken: null, isInitialized: true });
     }
   },
 
@@ -37,7 +41,6 @@ const useAuthStore = create((set) => ({
       });
 
       if (data.success) {
-        // Registration successful, but needs email verification
         set({ loading: false, error: null });
         return { 
           success: true, 
@@ -57,21 +60,17 @@ const useAuthStore = create((set) => ({
   login: async (email, password) => {
     set({ loading: true, error: null });
     try {
-      console.log(email, password)
       const { data } = await axiosClient.post("/auth/login", {
         email,
         password,
       });
 
       if (data.success) {
-        console.log(data)
         const { user, wallet, tokens } = data.data;
 
-        // Save tokens
         await AsyncStorage.setItem("accessToken", tokens.accessToken);
         await AsyncStorage.setItem("refreshToken", tokens.refreshToken);
 
-        // Save user data (include wallet)
         const userData = { ...user, wallet };
         await AsyncStorage.setItem("user", JSON.stringify(userData));
 
@@ -86,7 +85,6 @@ const useAuthStore = create((set) => ({
         return { success: true };
       }
     } catch (err) {
-      console.log(err)
       const errorMsg = err.response?.data?.message || "Login failed";
       const needsVerification = err.response?.data?.data?.needsVerification;
 
@@ -102,22 +100,26 @@ const useAuthStore = create((set) => ({
 
   // Logout
   logout: async () => {
+    // Clear state immediately
+    set({ user: null, accessToken: null, refreshToken: null, error: null });
+    
     try {
       const refreshToken = await AsyncStorage.getItem("refreshToken");
       
       if (refreshToken) {
-        await axiosClient.post("/auth/logout", { refreshToken });
+        axiosClient.post("/auth/logout", { refreshToken }).catch(() => {});
       }
     } catch (error) {
-      console.error("Logout API error:", error);
+      console.error("Logout error:", error);
     } finally {
-      // Clear local storage
-      await AsyncStorage.multiRemove(["accessToken", "refreshToken", "user"]);
-      set({ user: null, accessToken: null, refreshToken: null });
+      // Clear storage
+      await AsyncStorage.removeItem("accessToken");
+      await AsyncStorage.removeItem("refreshToken");
+      await AsyncStorage.removeItem("user");
     }
   },
 
-  // Update user data (after profile edit, coin earn, etc.)
+  // Update user data
   updateUser: (updates) => {
     set((state) => {
       const updatedUser = { ...state.user, ...updates };

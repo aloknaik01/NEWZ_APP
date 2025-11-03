@@ -27,22 +27,28 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   const router = useRouter();
-  const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
+  const { login, register, loading, error, user, initialize, clearError, isInitialized } = useAuthStore();
 
+  // Initialize on mount
   useEffect(() => {
-    initialize();
+    const init = async () => {
+      await initialize();
+      setIsReady(true);
+    };
+    init();
   }, []);
 
+  // Navigate if user exists
   useEffect(() => {
-    if (user) {
+    if (isReady && isInitialized && user) {
       router.replace("/home");
     }
-  }, [user]);
+  }, [isReady, isInitialized, user]);
 
   const handleSubmit = async () => {
-
     clearError();
 
     if (!email || !password) {
@@ -67,7 +73,6 @@ export default function LoginScreen() {
 
     if (isLogin) {
       const result = await login(email.toLowerCase().trim(), password);
-      console.log(email, password)
       if (result.success) {
         Alert.alert("Success", "Login successful!");
       } else {
@@ -97,7 +102,6 @@ export default function LoginScreen() {
       }
     } else {
       const result = await register(name.trim(), email.toLowerCase().trim(), password);
-      console.log(email, password, name)
       if (result.success) {
         Alert.alert(
           "Registration Successful!",
@@ -127,6 +131,16 @@ export default function LoginScreen() {
     setPassword("");
     clearError();
   };
+
+  // Show loading only during initialization
+  if (!isReady || !isInitialized) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10, color: colors.text }}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -353,7 +367,6 @@ export default function LoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Terms Text */}
             <Text style={styles.termsText}>
               By continuing, you agree to our{" "}
               <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
