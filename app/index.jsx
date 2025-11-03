@@ -1,18 +1,20 @@
+// app/index.jsx - UPDATED with Referral Code
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  ActivityIndicator,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StatusBar,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
 } from "react-native";
 import useAuthStore from "./store/authStore";
 import { colors } from "./styles/colors";
@@ -23,30 +25,25 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState(""); // ✅ NEW
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [referralFocused, setReferralFocused] = useState(false); // ✅ NEW
 
   const router = useRouter();
-  const { login, register, loading, error, user, initialize, clearError, isInitialized } = useAuthStore();
+  const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
 
-  // Initialize on mount
   useEffect(() => {
-    const init = async () => {
-      await initialize();
-      setIsReady(true);
-    };
-    init();
+    initialize();
   }, []);
 
-  // Navigate if user exists
   useEffect(() => {
-    if (isReady && isInitialized && user) {
+    if (user) {
       router.replace("/home");
     }
-  }, [isReady, isInitialized, user]);
+  }, [user]);
 
   const handleSubmit = async () => {
     clearError();
@@ -71,27 +68,32 @@ export default function LoginScreen() {
       return;
     }
 
+    // ✅ Validate referral code format if provided
+    if (!isLogin && referralCode && referralCode.length !== 8) {
+      Alert.alert("Error", "Referral code must be 8 characters");
+      return;
+    }
+
     if (isLogin) {
       const result = await login(email.toLowerCase().trim(), password);
+      
       if (result.success) {
         Alert.alert("Success", "Login successful!");
       } else {
         if (result.needsVerification) {
           Alert.alert(
             "Email Not Verified",
-            "Please verify your email before logging in. Check your inbox.",
+            "Please verify your email before logging in.",
             [
-              { text: "OK", style: "cancel" },
+              { text: "Cancel", style: "cancel" },
               {
-                text: "Resend Email",
-                onPress: async () => {
-                  const resendResult = await useAuthStore
-                    .getState()
-                    .resendVerification(email);
-                  Alert.alert(
-                    resendResult.success ? "Success" : "Error",
-                    resendResult.message
-                  );
+                text: "Verify Now",
+                onPress: () => {
+                  // ✅ Navigate to OTP verification screen
+                  router.push({
+                    pathname: "/verifyEmail",
+                    params: { email }
+                  });
                 },
               },
             ]
@@ -101,19 +103,29 @@ export default function LoginScreen() {
         }
       }
     } else {
-      const result = await register(name.trim(), email.toLowerCase().trim(), password);
+      // ✅ Pass referral code to register
+      const result = await register(
+        name.trim(), 
+        email.toLowerCase().trim(), 
+        password,
+        referralCode.toUpperCase().trim() || null
+      );
+      
       if (result.success) {
         Alert.alert(
-          "Registration Successful!",
-          "Please check your email to verify your account before logging in.",
+          "Registration Successful! 🎉",
+          result.referralBonusEarned > 0 
+            ? `${result.message}\n\n🎁 Your referrer just earned ${result.referralBonusEarned} coins!`
+            : result.message,
           [
             {
-              text: "OK",
+              text: "Verify Email",
               onPress: () => {
-                setIsLogin(true);
-                setEmail("");
-                setPassword("");
-                setName("");
+                // ✅ Navigate to OTP verification screen
+                router.push({
+                  pathname: "/verifyEmail",
+                  params: { email: email.toLowerCase().trim() }
+                });
               },
             },
           ]
@@ -129,27 +141,13 @@ export default function LoginScreen() {
     setName("");
     setEmail("");
     setPassword("");
+    setReferralCode(""); // ✅ Clear referral code
     clearError();
   };
 
-  // Show loading only during initialization
-  if (!isReady || !isInitialized) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ marginTop: 10, color: colors.text }}>Loading...</Text>
-      </View>
-    );
-  }
-
   return (
     <>
-      <StatusBar
-        style="light"
-        backgroundColor="#000000ff"
-        translucent={false}
-        barStyle="dark-content"
-      />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}
@@ -244,6 +242,7 @@ export default function LoginScreen() {
               </Text>
             </View>
 
+            {/* Name Input (Register only) */}
             {!isLogin && (
               <View style={styles.inputWrapper}>
                 <View
@@ -272,6 +271,7 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {/* Email Input */}
             <View style={styles.inputWrapper}>
               <View
                 style={[
@@ -299,6 +299,7 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            {/* Password Input */}
             <View style={styles.inputWrapper}>
               <View
                 style={[
@@ -332,6 +333,45 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            {/* ✅ NEW: Referral Code Input (Register only) */}
+            {!isLogin && (
+              <View style={styles.inputWrapper}>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    referralFocused && styles.inputContainerFocused,
+                  ]}
+                >
+                  <Ionicons
+                    name="gift-outline"
+                    size={20}
+                    color={referralFocused ? colors.primary : colors.gray}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Referral code (optional)"
+                    placeholderTextColor={colors.gray}
+                    value={referralCode}
+                    onChangeText={(text) => setReferralCode(text.toUpperCase())}
+                    autoCapitalize="characters"
+                    maxLength={8}
+                    onFocus={() => setReferralFocused(true)}
+                    onBlur={() => setReferralFocused(false)}
+                  />
+                  {referralCode.length > 0 && (
+                    <TouchableOpacity onPress={() => setReferralCode("")}>
+                      <Ionicons name="close-circle" size={20} color={colors.gray} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <Text style={styles.referralHint}>
+                  🎁 Have a referral code? Enter it to give your friend a bonus!
+                </Text>
+              </View>
+            )}
+
+            {/* Error Message */}
             {error && (
               <View style={styles.errorContainer}>
                 <Ionicons name="alert-circle" size={16} color="#DC2626" />
@@ -339,12 +379,14 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {/* Forgot Password (Login only) */}
             {isLogin && (
               <TouchableOpacity style={styles.forgotPassword}>
                 <Text style={styles.forgotPasswordText}>Forgot password?</Text>
               </TouchableOpacity>
             )}
 
+            {/* Submit Button */}
             <TouchableOpacity
               onPress={handleSubmit}
               activeOpacity={0.8}
@@ -367,6 +409,7 @@ export default function LoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
+            {/* Terms Text */}
             <Text style={styles.termsText}>
               By continuing, you agree to our{" "}
               <Text style={styles.termsLink}>Terms of Service</Text> and{" "}
@@ -378,3 +421,13 @@ export default function LoginScreen() {
     </>
   );
 }
+
+// ✅ Add referral hint style
+const additionalStyles = StyleSheet.create({
+  referralHint: {
+    fontSize: 12,
+    color: colors.gray,
+    marginTop: 6,
+    fontStyle: "italic",
+  },
+});
