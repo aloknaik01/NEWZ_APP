@@ -2,19 +2,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import useAuthStore from "./store/authStore";
 import { colors } from "./styles/colors";
@@ -25,12 +25,12 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [referralCode, setReferralCode] = useState(""); 
+  const [referralCode, setReferralCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const [referralFocused, setReferralFocused] = useState(false); 
+  const [referralFocused, setReferralFocused] = useState(false);
 
   const router = useRouter();
   const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
@@ -76,7 +76,7 @@ export default function LoginScreen() {
 
     if (isLogin) {
       const result = await login(email.toLowerCase().trim(), password);
-      
+
       if (result.success) {
         Alert.alert("Success", "Login successful!");
       } else {
@@ -105,23 +105,22 @@ export default function LoginScreen() {
     } else {
       // Pass referral code to register
       const result = await register(
-        name.trim(), 
-        email.toLowerCase().trim(), 
+        name.trim(),
+        email.toLowerCase().trim(),
         password,
         referralCode.toUpperCase().trim() || null
       );
-      
+
       if (result.success) {
         Alert.alert(
-          "Registration Successful! 🎉",
-          result.referralBonusEarned > 0 
-            ? `${result.message}\n\nYour referrer just earned ${result.referralBonusEarned} coins!`
+          "Registration Successful! ",
+          result.signupBonusEarned > 0
+            ? `You earned ${result.signupBonusEarned} coins as signup bonus!\n\n Your referrer will earn their bonus after you read 20 articles!`
             : result.message,
           [
             {
               text: "Verify Email",
               onPress: () => {
-                // Navigate to OTP verification screen
                 router.push({
                   pathname: "/verifyEmail",
                   params: { email: email.toLowerCase().trim() }
