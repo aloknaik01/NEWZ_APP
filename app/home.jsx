@@ -25,8 +25,7 @@ import { colors } from "./styles/colors";
 import { styles } from "./styles/homeStyles";
 import { bottomNavData } from "./utils/bottomNavData";
 import { navigationTabs } from "./utils/navigationTabs";
-import AsyncStorage from "@react-native-async-storage/async-storage";
- 
+
 
 export default function Home() {
   const router = useRouter();
@@ -44,7 +43,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
 
 
- 
+
   useEffect(() => {
     if (!user) {
       router.replace("/");

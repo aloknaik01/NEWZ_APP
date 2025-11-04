@@ -1,4 +1,4 @@
-// app/verifyEmail.jsx
+// app/verifyEmail.jsx - CREATE THIS NEW FILE
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";

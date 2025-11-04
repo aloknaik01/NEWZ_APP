@@ -25,12 +25,12 @@ export default function LoginScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [referralCode, setReferralCode] = useState(""); // ✅ NEW
+  const [referralCode, setReferralCode] = useState(""); 
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const [referralFocused, setReferralFocused] = useState(false); // ✅ NEW
+  const [referralFocused, setReferralFocused] = useState(false); 
 
   const router = useRouter();
   const { login, register, loading, error, user, initialize, clearError } = useAuthStore();
@@ -68,7 +68,7 @@ export default function LoginScreen() {
       return;
     }
 
-    // ✅ Validate referral code format if provided
+    // Validate referral code format if provided
     if (!isLogin && referralCode && referralCode.length !== 8) {
       Alert.alert("Error", "Referral code must be 8 characters");
       return;
@@ -89,7 +89,7 @@ export default function LoginScreen() {
               {
                 text: "Verify Now",
                 onPress: () => {
-                  // ✅ Navigate to OTP verification screen
+                  // Navigate to OTP verification screen
                   router.push({
                     pathname: "/verifyEmail",
                     params: { email }
@@ -103,7 +103,7 @@ export default function LoginScreen() {
         }
       }
     } else {
-      // ✅ Pass referral code to register
+      // Pass referral code to register
       const result = await register(
         name.trim(), 
         email.toLowerCase().trim(), 
@@ -115,13 +115,13 @@ export default function LoginScreen() {
         Alert.alert(
           "Registration Successful! 🎉",
           result.referralBonusEarned > 0 
-            ? `${result.message}\n\n🎁 Your referrer just earned ${result.referralBonusEarned} coins!`
+            ? `${result.message}\n\nYour referrer just earned ${result.referralBonusEarned} coins!`
             : result.message,
           [
             {
               text: "Verify Email",
               onPress: () => {
-                // ✅ Navigate to OTP verification screen
+                // Navigate to OTP verification screen
                 router.push({
                   pathname: "/verifyEmail",
                   params: { email: email.toLowerCase().trim() }
@@ -141,7 +141,7 @@ export default function LoginScreen() {
     setName("");
     setEmail("");
     setPassword("");
-    setReferralCode(""); // ✅ Clear referral code
+    setReferralCode(""); // Clear referral code
     clearError();
   };
 
@@ -333,7 +333,7 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* ✅ NEW: Referral Code Input (Register only) */}
+            {/* Referral Code Input (Register only) */}
             {!isLogin && (
               <View style={styles.inputWrapper}>
                 <View
@@ -366,7 +366,7 @@ export default function LoginScreen() {
                   )}
                 </View>
                 <Text style={styles.referralHint}>
-                  🎁 Have a referral code? Enter it to give your friend a bonus!
+                  Have a referral code? Enter it to give your friend a bonus!
                 </Text>
               </View>
             )}
@@ -422,7 +422,7 @@ export default function LoginScreen() {
   );
 }
 
-// ✅ Add referral hint style
+//  referral hint style
 const additionalStyles = StyleSheet.create({
   referralHint: {
     fontSize: 12,

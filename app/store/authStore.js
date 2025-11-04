@@ -30,7 +30,7 @@ const useAuthStore = create((set) => ({
   },
 
   // Register
-  register: async (fullName, email, password, referredByCode = "") => {
+  register: async (fullName, email, password, referredByCode = null) => {
     set({ loading: true, error: null });
     try {
       const { data } = await axiosClient.post("/auth/register", {
@@ -42,11 +42,11 @@ const useAuthStore = create((set) => ({
 
       if (data.success) {
         set({ loading: false, error: null });
-        return { 
-          success: true, 
+        return {
+          success: true,
           message: data.message,
           needsVerification: true,
-          email: email 
+          email: email
         };
       }
     } catch (err) {
@@ -89,8 +89,8 @@ const useAuthStore = create((set) => ({
       const needsVerification = err.response?.data?.data?.needsVerification;
 
       set({ error: errorMsg, loading: false });
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: errorMsg,
         needsVerification,
         email: email
@@ -102,12 +102,12 @@ const useAuthStore = create((set) => ({
   logout: async () => {
     // Clear state immediately
     set({ user: null, accessToken: null, refreshToken: null, error: null });
-    
+
     try {
       const refreshToken = await AsyncStorage.getItem("refreshToken");
-      
+
       if (refreshToken) {
-        axiosClient.post("/auth/logout", { refreshToken }).catch(() => {});
+        axiosClient.post("/auth/logout", { refreshToken }).catch(() => { });
       }
     } catch (error) {
       console.error("Logout error:", error);
