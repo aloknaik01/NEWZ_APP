@@ -140,7 +140,7 @@ export default function LoginScreen() {
     setName("");
     setEmail("");
     setPassword("");
-    setReferralCode(""); 
+    setReferralCode(""); // ✅ Clear referral code
     clearError();
   };
 
